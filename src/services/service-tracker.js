@@ -158,6 +158,19 @@ function getOpenSession(guildId, userId) {
     .get(guildId, userId);
 }
 
+function getActiveSessions(guildId) {
+  return getDb()
+    .prepare(
+      `
+      SELECT *
+      FROM service_sessions
+      WHERE guild_id = ? AND ended_at IS NULL
+      ORDER BY started_at ASC, user_id ASC
+      `
+    )
+    .all(guildId);
+}
+
 function startService(guildId, userId) {
   const existing = getOpenSession(guildId, userId);
   if (existing) {
@@ -424,8 +437,16 @@ async function updateProfileThread(interaction, status) {
   const historyLines =
     recentSessions.length > 0
       ? recentSessions.map((session) => {
-          const start = formatDiscordTimestamp(new Date(session.started_at));
-          return `- ${start} (${formatDuration(session.duration || 0)})`;
+          const startedAt = formatDiscordTimestamp(new Date(session.started_at));
+          const endedAt = session.ended_at
+            ? formatDiscordTimestamp(new Date(session.ended_at))
+            : t(language, "forumActiveSessionNone");
+
+          return t(language, "forumSessionHistoryLine", {
+            startedAt,
+            endedAt,
+            duration: formatDuration(session.duration || 0)
+          });
         })
       : [t(language, "forumNoCompletedSessions")];
 
@@ -526,6 +547,7 @@ module.exports = {
   ensureUserProfile,
   getGuildConfig,
   getConfiguredRankRoleIds,
+  getActiveSessions,
   getLeaderboard,
   getOpenSession,
   getRecentSessions,

@@ -1,10 +1,9 @@
 const { SlashCommandBuilder } = require("discord.js");
 const {
   assertCommandChannel,
+  getActiveSessions,
   ensureUserProfile,
   getGuildConfig,
-  getOpenSession,
-  getUserProfile,
   startService,
   stopService,
   updateProfileThread
@@ -27,7 +26,9 @@ const data = new SlashCommandBuilder()
     subcommand.setName("stop").setDescription("Stop your current service session.")
   )
   .addSubcommand((subcommand) =>
-    subcommand.setName("status").setDescription("Show your current service status.")
+    subcommand
+      .setName("status")
+      .setDescription("Show the agents currently on duty.")
   );
 
 async function execute(interaction) {
@@ -79,30 +80,41 @@ async function execute(interaction) {
       interaction,
       t(language, "serviceStopped", {
         displayName,
+        endedAt: formatDiscordTimestamp(new Date(result.completedSession.ended_at)),
         duration: formatDuration(result.completedSession.duration || 0)
       })
     );
     return;
   }
 
-  const profile = getUserProfile(interaction.guildId, interaction.user.id);
-  const openSession = getOpenSession(interaction.guildId, interaction.user.id);
+  const activeSessions = getActiveSessions(interaction.guildId);
+
+  if (activeSessions.length === 0) {
+    await interaction.reply({
+      content: t(language, "activeAgentsEmpty"),
+      ephemeral: true
+    });
+    return;
+  }
+
+  const lines = await Promise.all(
+    activeSessions.map(async (session, index) => {
+      const member = await interaction.guild.members.fetch(session.user_id).catch(() => null);
+      const label =
+        member?.displayName || member?.user?.username || session.user_id;
+
+      return `${index + 1}. ${label} - ${t(language, "activeAgentsStartedAt", {
+        startedAt: formatDiscordTimestamp(new Date(session.started_at))
+      })}`;
+    })
+  );
 
   await interaction.reply({
     content: [
-      `${t(language, "statusLabel")}: ${
-        openSession ? t(language, "statusOnDuty") : t(language, "statusOffDuty")
-      }`,
-      `${t(language, "currentSessionLabel")}: ${
-        openSession
-          ? t(language, "currentSessionStarted", {
-              startedAt: formatDiscordTimestamp(new Date(openSession.started_at))
-            })
-          : t(language, "currentSessionNone")
-      }`,
-      `${t(language, "totalTimeLabel")}: ${formatDuration(
-        profile?.total_time || 0
-      )}`
+      `**${t(language, "activeAgentsTitle")}**`,
+      t(language, "activeAgentsCount", { count: activeSessions.length }),
+      "",
+      ...lines
     ].join("\n"),
     ephemeral: true
   });

@@ -79,8 +79,8 @@ const translations = {
     serviceStarted: ({ displayName, startedAt }) =>
       `\u{1F7E2} **${displayName}** a pris son service a ${startedAt}.`,
     serviceNoActiveSession: "Vous n'avez aucune session de service active.",
-    serviceStopped: ({ displayName, duration }) =>
-      `\u{1F534} **${displayName}** a termine son service apres ${duration}.`,
+    serviceStopped: ({ displayName, endedAt, duration }) =>
+      `\u{1F534} **${displayName}** a termine son service a ${endedAt} apres ${duration}.`,
     statusLabel: "Statut",
     statusOnDuty: "\u{1F7E2} En service",
     statusOffDuty: "\u{1F534} Hors service",
@@ -88,6 +88,10 @@ const translations = {
     currentSessionStarted: ({ startedAt }) => `Commencee ${startedAt}`,
     currentSessionNone: "Aucune session active",
     totalTimeLabel: "Temps total",
+    activeAgentsTitle: "Agents en service",
+    activeAgentsEmpty: "Aucun agent n'est actuellement en service.",
+    activeAgentsCount: ({ count }) => `${count} agent(s) en service`,
+    activeAgentsStartedAt: ({ startedAt }) => `Depuis ${startedAt}`,
     leaderboardCommandDescription:
       "Affiche le classement des temps de service du serveur.",
     leaderboardEmpty: "Aucune donnee de service n'a encore ete enregistree.",
@@ -104,6 +108,8 @@ const translations = {
     forumActiveSessionStarted: ({ startedAt }) => `Commencee ${startedAt}`,
     forumActiveSessionNone: "Aucune",
     forumRankNone: "Aucun rang",
+    forumSessionHistoryLine: ({ startedAt, endedAt, duration }) =>
+      `- ${startedAt} -> ${endedAt} (${duration})`,
     forumRecentSessionsTitle: "**Sessions recentes**",
     forumNoCompletedSessions: "- Aucune session terminee pour le moment.",
     commandGuideTitle: "Commandes de service",
@@ -115,7 +121,7 @@ const translations = {
     commandGuideStopField: "/service stop",
     commandGuideStopValue: "Terminer son service",
     commandGuideStatusField: "/service status",
-    commandGuideStatusValue: "Voir son statut actuel",
+    commandGuideStatusValue: "Voir les agents actuellement en service",
     commandGuideLeaderboardField: "/leaderboard",
     commandGuideLeaderboardValue: "Voir le classement des temps de service",
     commandGuideFooter:
@@ -198,8 +204,8 @@ const translations = {
     serviceStarted: ({ displayName, startedAt }) =>
       `\u{1F7E2} **${displayName}** started service at ${startedAt}.`,
     serviceNoActiveSession: "You do not have any active service session.",
-    serviceStopped: ({ displayName, duration }) =>
-      `\u{1F534} **${displayName}** finished service after ${duration}.`,
+    serviceStopped: ({ displayName, endedAt, duration }) =>
+      `\u{1F534} **${displayName}** finished service at ${endedAt} after ${duration}.`,
     statusLabel: "Status",
     statusOnDuty: "\u{1F7E2} On duty",
     statusOffDuty: "\u{1F534} Off duty",
@@ -207,6 +213,10 @@ const translations = {
     currentSessionStarted: ({ startedAt }) => `Started ${startedAt}`,
     currentSessionNone: "No active session",
     totalTimeLabel: "Total time",
+    activeAgentsTitle: "Agents on duty",
+    activeAgentsEmpty: "No agent is currently on duty.",
+    activeAgentsCount: ({ count }) => `${count} agent(s) on duty`,
+    activeAgentsStartedAt: ({ startedAt }) => `Since ${startedAt}`,
     leaderboardCommandDescription:
       "Show the top service times for this server.",
     leaderboardEmpty: "No service data recorded yet.",
@@ -223,6 +233,8 @@ const translations = {
     forumActiveSessionStarted: ({ startedAt }) => `Started ${startedAt}`,
     forumActiveSessionNone: "None",
     forumRankNone: "No rank",
+    forumSessionHistoryLine: ({ startedAt, endedAt, duration }) =>
+      `- ${startedAt} -> ${endedAt} (${duration})`,
     forumRecentSessionsTitle: "**Recent sessions**",
     forumNoCompletedSessions: "- No completed sessions yet.",
     commandGuideTitle: "Service commands",
@@ -234,7 +246,7 @@ const translations = {
     commandGuideStopField: "/service stop",
     commandGuideStopValue: "End your service session",
     commandGuideStatusField: "/service status",
-    commandGuideStatusValue: "View your current status",
+    commandGuideStatusValue: "View the agents currently on duty",
     commandGuideLeaderboardField: "/leaderboard",
     commandGuideLeaderboardValue: "View the service time leaderboard",
     commandGuideFooter:
