@@ -1,4 +1,4 @@
-const { ChannelType } = require("discord.js");
+const { ChannelType, EmbedBuilder } = require("discord.js");
 const { getDb } = require("../db");
 const { getGuildLanguage, t } = require("../utils/i18n");
 const {
@@ -46,6 +46,7 @@ function upsertGuildConfig(guildId, updates) {
   const current = getGuildConfig(guildId) || {
     guild_id: guildId,
     command_channel_id: null,
+    command_panel_message_id: null,
     forum_channel_id: null,
     job_name: null,
     language: "en",
@@ -70,6 +71,7 @@ function upsertGuildConfig(guildId, updates) {
       INSERT INTO guild_config (
         guild_id,
         command_channel_id,
+        command_panel_message_id,
         forum_channel_id,
         job_name,
         language,
@@ -78,6 +80,7 @@ function upsertGuildConfig(guildId, updates) {
       VALUES (
         @guild_id,
         @command_channel_id,
+        @command_panel_message_id,
         @forum_channel_id,
         @job_name,
         @language,
@@ -85,6 +88,7 @@ function upsertGuildConfig(guildId, updates) {
       )
       ON CONFLICT(guild_id) DO UPDATE SET
         command_channel_id = excluded.command_channel_id,
+        command_panel_message_id = excluded.command_panel_message_id,
         forum_channel_id = excluded.forum_channel_id,
         job_name = excluded.job_name,
         language = excluded.language,
@@ -244,6 +248,95 @@ function getLeaderboard(guildId, limit = 10) {
 
 function getProfileThreadName(displayName, jobName) {
   return `${displayName} - ${jobName || "Service"}`.slice(0, 100);
+}
+
+async function getConfiguredCommandChannel(guild, config) {
+  if (!config?.command_channel_id) {
+    return null;
+  }
+
+  const channel = await guild.channels.fetch(config.command_channel_id);
+  if (!channel || channel.type !== ChannelType.GuildText) {
+    return null;
+  }
+
+  return channel;
+}
+
+function buildCommandGuidePayload(config) {
+  const language = getGuildLanguage(config);
+  const embed = new EmbedBuilder()
+    .setColor(0x2b6cff)
+    .setTitle(t(language, "commandGuideTitle"))
+    .setDescription(t(language, "commandGuideDescription"))
+    .addFields(
+      {
+        name: t(language, "commandGuideJobField"),
+        value: config.job_name || t(language, "configNotSet"),
+        inline: false
+      },
+      {
+        name: t(language, "commandGuideStartField"),
+        value: t(language, "commandGuideStartValue"),
+        inline: true
+      },
+      {
+        name: t(language, "commandGuideStopField"),
+        value: t(language, "commandGuideStopValue"),
+        inline: true
+      },
+      {
+        name: t(language, "commandGuideStatusField"),
+        value: t(language, "commandGuideStatusValue"),
+        inline: true
+      },
+      {
+        name: t(language, "commandGuideLeaderboardField"),
+        value: t(language, "commandGuideLeaderboardValue"),
+        inline: false
+      }
+    )
+    .setFooter({
+      text: t(language, "commandGuideFooter")
+    });
+
+  return {
+    content: null,
+    embeds: [embed]
+  };
+}
+
+async function syncCommandGuideMessage(guild, config) {
+  const channel = await getConfiguredCommandChannel(guild, config);
+  if (!channel) {
+    return null;
+  }
+
+  const payload = buildCommandGuidePayload(config);
+
+  if (config.command_panel_message_id) {
+    const existingMessage = await channel.messages
+      .fetch(config.command_panel_message_id)
+      .catch(() => null);
+
+    if (existingMessage) {
+      await existingMessage.edit(payload);
+      if (!existingMessage.pinned) {
+        await existingMessage.pin().catch(() => null);
+      }
+      return existingMessage;
+    }
+  }
+
+  const message = await channel.send(payload);
+  await message.pin().catch(() => null);
+
+  upsertGuildConfig(guild.id, {
+    ...config,
+    command_panel_message_id: message.id
+  });
+
+  return message;
 }
 
 async function getConfiguredForumChannel(guild, config) {
@@ -437,6 +530,7 @@ module.exports = {
   getOpenSession,
   getRecentSessions,
   getUserProfile,
+  syncCommandGuideMessage,
   wipeConfiguredForum,
   startService,
   stopService,

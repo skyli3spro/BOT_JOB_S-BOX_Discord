@@ -106,6 +106,20 @@ const translations = {
     forumRankNone: "Aucun rang",
     forumRecentSessionsTitle: "**Sessions recentes**",
     forumNoCompletedSessions: "- Aucune session terminee pour le moment.",
+    commandGuideTitle: "Commandes de service",
+    commandGuideDescription:
+      "Utilisez les commandes ci-dessous dans ce salon pour gerer votre prise de service.",
+    commandGuideJobField: "Metier",
+    commandGuideStartField: "/service start",
+    commandGuideStartValue: "Prendre son service",
+    commandGuideStopField: "/service stop",
+    commandGuideStopValue: "Terminer son service",
+    commandGuideStatusField: "/service status",
+    commandGuideStatusValue: "Voir son statut actuel",
+    commandGuideLeaderboardField: "/leaderboard",
+    commandGuideLeaderboardValue: "Voir le classement des temps de service",
+    commandGuideFooter:
+      "Utilisez ces commandes dans ce salon pour votre service RP.",
     commandChannelOnly:
       "Cette commande peut uniquement etre utilisee dans le salon configure."
   },
@@ -211,6 +225,20 @@ const translations = {
     forumRankNone: "No rank",
     forumRecentSessionsTitle: "**Recent sessions**",
     forumNoCompletedSessions: "- No completed sessions yet.",
+    commandGuideTitle: "Service commands",
+    commandGuideDescription:
+      "Use the commands below in this channel to manage your service sessions.",
+    commandGuideJobField: "Job",
+    commandGuideStartField: "/service start",
+    commandGuideStartValue: "Start your service session",
+    commandGuideStopField: "/service stop",
+    commandGuideStopValue: "End your service session",
+    commandGuideStatusField: "/service status",
+    commandGuideStatusValue: "View your current status",
+    commandGuideLeaderboardField: "/leaderboard",
+    commandGuideLeaderboardValue: "View the service time leaderboard",
+    commandGuideFooter:
+      "Use these commands in this channel for your RP service flow.",
     commandChannelOnly:
       "This command can only be used in the configured channel."
   }

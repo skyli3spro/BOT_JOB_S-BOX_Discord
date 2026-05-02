@@ -17,6 +17,7 @@ function initDatabase(databasePath) {
     CREATE TABLE IF NOT EXISTS guild_config (
       guild_id TEXT PRIMARY KEY,
       command_channel_id TEXT,
+      command_panel_message_id TEXT,
       forum_channel_id TEXT,
       job_name TEXT,
       language TEXT DEFAULT 'en',
@@ -48,6 +49,10 @@ function initDatabase(databasePath) {
 
   if (!guildConfigColumns.includes("language")) {
     db.exec("ALTER TABLE guild_config ADD COLUMN language TEXT DEFAULT 'en';");
+  }
+
+  if (!guildConfigColumns.includes("command_panel_message_id")) {
+    db.exec("ALTER TABLE guild_config ADD COLUMN command_panel_message_id TEXT;");
   }
 
   if (!guildConfigColumns.includes("rank_role_ids")) {

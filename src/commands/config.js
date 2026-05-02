@@ -6,6 +6,7 @@ const {
 const {
   getConfiguredRankRoleIds,
   getGuildConfig,
+  syncCommandGuideMessage,
   upsertGuildConfig,
   wipeConfiguredForum
 } = require("../services/service-tracker");
@@ -170,10 +171,12 @@ async function execute(interaction) {
 
   if (subcommand === "command-channel") {
     const channel = interaction.options.getChannel("channel", true);
-    upsertGuildConfig(interaction.guildId, {
+    const nextConfig = upsertGuildConfig(interaction.guildId, {
       command_channel_id: channel.id,
+      command_panel_message_id: null,
       language: currentLanguage
     });
+    await syncCommandGuideMessage(interaction.guild, nextConfig);
     await interaction.reply({
       content: t(currentLanguage, "configCommandChannelSaved", {
         channel
@@ -200,10 +203,11 @@ async function execute(interaction) {
 
   if (subcommand === "job-name") {
     const value = interaction.options.getString("value", true);
-    upsertGuildConfig(interaction.guildId, {
+    const nextConfig = upsertGuildConfig(interaction.guildId, {
       job_name: value,
       language: currentLanguage
     });
+    await syncCommandGuideMessage(interaction.guild, nextConfig);
     await interaction.reply({
       content: t(currentLanguage, "configJobNameSaved", { value }),
       ephemeral: true
@@ -215,9 +219,10 @@ async function execute(interaction) {
     const value = normalizeLanguage(
       interaction.options.getString("value", true)
     );
-    upsertGuildConfig(interaction.guildId, {
+    const nextConfig = upsertGuildConfig(interaction.guildId, {
       language: value
     });
+    await syncCommandGuideMessage(interaction.guild, nextConfig);
 
     await interaction.reply({
       content: t(value, "configLanguageSaved", {
