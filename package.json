@@ -1,0 +1,18 @@
+{
+  "name": "bot-job-s-box-discord",
+  "version": "0.1.0",
+  "description": "Discord service tracker bot for RP jobs",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "register": "node src/register-commands.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.4.7"
+  }
+}
