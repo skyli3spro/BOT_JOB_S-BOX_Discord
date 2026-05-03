@@ -4,6 +4,7 @@ const {
   SlashCommandBuilder
 } = require("discord.js");
 const {
+  getConfiguredTrainingRoleIds,
   getConfiguredRankRoleIds,
   getGuildConfig,
   syncCommandGuideMessage,
@@ -43,6 +44,18 @@ const data = new SlashCommandBuilder()
         option
           .setName("channel")
           .setDescription("Forum used for service profiles")
+          .addChannelTypes(ChannelType.GuildForum)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("training-forum")
+      .setDescription("Set the forum used for training guides.")
+      .addChannelOption((option) =>
+        option
+          .setName("channel")
+          .setDescription("Forum used for training guides")
           .addChannelTypes(ChannelType.GuildForum)
           .setRequired(true)
       )
@@ -108,6 +121,38 @@ const data = new SlashCommandBuilder()
   )
   .addSubcommand((subcommand) =>
     subcommand
+      .setName("training-role-add")
+      .setDescription("Add a role to the list allowed to publish guides.")
+      .addRoleOption((option) =>
+        option
+          .setName("role")
+          .setDescription("Role allowed to publish training guides")
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("training-role-remove")
+      .setDescription("Remove a role from the list allowed to publish guides.")
+      .addRoleOption((option) =>
+        option
+          .setName("role")
+          .setDescription("Role allowed to publish training guides")
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("training-role-list")
+      .setDescription("Show the roles allowed to publish guides.")
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("training-role-clear")
+      .setDescription("Clear the roles allowed to publish guides.")
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
       .setName("wipe-forum")
       .setDescription("Delete every post in the configured forum.")
       .addStringOption((option) =>
@@ -128,6 +173,7 @@ async function execute(interaction) {
   const currentConfig = getGuildConfig(interaction.guildId);
   const currentLanguage = getGuildLanguage(currentConfig);
   const configuredRankRoleIds = getConfiguredRankRoleIds(currentConfig);
+  const configuredTrainingRoleIds = getConfiguredTrainingRoleIds(currentConfig);
 
   if (subcommand === "show") {
     const config = currentConfig;
@@ -151,6 +197,11 @@ async function execute(interaction) {
             ? `<#${config.forum_channel_id}>`
             : t(currentLanguage, "configNotSet")
         }`,
+        `${t(currentLanguage, "configLabelTrainingForumChannel")}: ${
+          config.training_forum_channel_id
+            ? `<#${config.training_forum_channel_id}>`
+            : t(currentLanguage, "configNotSet")
+        }`,
         `${t(currentLanguage, "configLabelJobName")}: ${
           config.job_name || t(currentLanguage, "configNotSet")
         }`,
@@ -162,6 +213,11 @@ async function execute(interaction) {
           configuredRankRoleIds.length > 0
             ? configuredRankRoleIds.map((roleId) => `<@&${roleId}>`).join(", ")
             : t(currentLanguage, "configAllRolesAllowed")
+        }`,
+        `${t(currentLanguage, "configLabelTrainingRoles")}: ${
+          configuredTrainingRoleIds.length > 0
+            ? configuredTrainingRoleIds.map((roleId) => `<@&${roleId}>`).join(", ")
+            : t(currentLanguage, "configTrainingRolesDefault")
         }`
       ].join("\n"),
       ephemeral: true
@@ -194,6 +250,21 @@ async function execute(interaction) {
     });
     await interaction.reply({
       content: t(currentLanguage, "configForumChannelSaved", {
+        channel
+      }),
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (subcommand === "training-forum") {
+    const channel = interaction.options.getChannel("channel", true);
+    upsertGuildConfig(interaction.guildId, {
+      training_forum_channel_id: channel.id,
+      language: currentLanguage
+    });
+    await interaction.reply({
+      content: t(currentLanguage, "configTrainingForumChannelSaved", {
         channel
       }),
       ephemeral: true
@@ -295,6 +366,73 @@ async function execute(interaction) {
     });
     await interaction.reply({
       content: t(currentLanguage, "configRankRoleClearSaved"),
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (subcommand === "training-role-add") {
+    const role = interaction.options.getRole("role", true);
+    if (configuredTrainingRoleIds.includes(role.id)) {
+      await interaction.reply({
+        content: t(currentLanguage, "configTrainingRoleAlreadyPresent", { role }),
+        ephemeral: true
+      });
+      return;
+    }
+
+    upsertGuildConfig(interaction.guildId, {
+      training_role_ids: [...configuredTrainingRoleIds, role.id],
+      language: currentLanguage
+    });
+    await interaction.reply({
+      content: t(currentLanguage, "configTrainingRoleAddSaved", { role }),
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (subcommand === "training-role-remove") {
+    const role = interaction.options.getRole("role", true);
+    if (!configuredTrainingRoleIds.includes(role.id)) {
+      await interaction.reply({
+        content: t(currentLanguage, "configTrainingRoleNotPresent", { role }),
+        ephemeral: true
+      });
+      return;
+    }
+
+    upsertGuildConfig(interaction.guildId, {
+      training_role_ids: configuredTrainingRoleIds.filter((roleId) => roleId !== role.id),
+      language: currentLanguage
+    });
+    await interaction.reply({
+      content: t(currentLanguage, "configTrainingRoleRemoveSaved", { role }),
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (subcommand === "training-role-list") {
+    await interaction.reply({
+      content:
+        configuredTrainingRoleIds.length > 0
+          ? `${t(currentLanguage, "configTrainingRoleListTitle")}\n${configuredTrainingRoleIds
+              .map((roleId) => `- <@&${roleId}>`)
+              .join("\n")}`
+          : t(currentLanguage, "configTrainingRoleListEmpty"),
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (subcommand === "training-role-clear") {
+    upsertGuildConfig(interaction.guildId, {
+      training_role_ids: [],
+      language: currentLanguage
+    });
+    await interaction.reply({
+      content: t(currentLanguage, "configTrainingRoleClearSaved"),
       ephemeral: true
     });
     return;

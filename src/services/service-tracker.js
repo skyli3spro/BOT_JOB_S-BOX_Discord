@@ -42,15 +42,21 @@ function getConfiguredRankRoleIds(config) {
   return parseRankRoleIds(config?.rank_role_ids);
 }
 
+function getConfiguredTrainingRoleIds(config) {
+  return parseRankRoleIds(config?.training_role_ids);
+}
+
 function upsertGuildConfig(guildId, updates) {
   const current = getGuildConfig(guildId) || {
     guild_id: guildId,
     command_channel_id: null,
     command_panel_message_id: null,
     forum_channel_id: null,
+    training_forum_channel_id: null,
     job_name: null,
     language: "en",
-    rank_role_ids: "[]"
+    rank_role_ids: "[]",
+    training_role_ids: "[]"
   };
 
   const next = {
@@ -64,6 +70,11 @@ function upsertGuildConfig(guildId, updates) {
       ? next.rank_role_ids
       : parseRankRoleIds(next.rank_role_ids)
   );
+  next.training_role_ids = serializeRankRoleIds(
+    Array.isArray(next.training_role_ids)
+      ? next.training_role_ids
+      : parseRankRoleIds(next.training_role_ids)
+  );
 
   getDb()
     .prepare(
@@ -73,26 +84,32 @@ function upsertGuildConfig(guildId, updates) {
         command_channel_id,
         command_panel_message_id,
         forum_channel_id,
+        training_forum_channel_id,
         job_name,
         language,
-        rank_role_ids
+        rank_role_ids,
+        training_role_ids
       )
       VALUES (
         @guild_id,
         @command_channel_id,
         @command_panel_message_id,
         @forum_channel_id,
+        @training_forum_channel_id,
         @job_name,
         @language,
-        @rank_role_ids
+        @rank_role_ids,
+        @training_role_ids
       )
       ON CONFLICT(guild_id) DO UPDATE SET
         command_channel_id = excluded.command_channel_id,
         command_panel_message_id = excluded.command_panel_message_id,
         forum_channel_id = excluded.forum_channel_id,
+        training_forum_channel_id = excluded.training_forum_channel_id,
         job_name = excluded.job_name,
         language = excluded.language,
-        rank_role_ids = excluded.rank_role_ids
+        rank_role_ids = excluded.rank_role_ids,
+        training_role_ids = excluded.training_role_ids
       `
     )
     .run(next);
@@ -365,6 +382,93 @@ async function getConfiguredForumChannel(guild, config) {
   return forum;
 }
 
+async function getConfiguredTrainingForumChannel(guild, config) {
+  if (!config?.training_forum_channel_id) {
+    return null;
+  }
+
+  const forum = await guild.channels.fetch(config.training_forum_channel_id);
+  if (!forum || forum.type !== ChannelType.GuildForum) {
+    throw new Error(t(getGuildLanguage(config), "configTrainingForumNotConfigured"));
+  }
+
+  return forum;
+}
+
+function canManageTrainingGuides(member, config) {
+  if (!member) {
+    return false;
+  }
+
+  const allowedRoleIds = new Set(getConfiguredTrainingRoleIds(config));
+  if (allowedRoleIds.size === 0) {
+    return false;
+  }
+
+  return member.roles?.cache?.some((role) => allowedRoleIds.has(role.id)) || false;
+}
+
+function splitTextIntoChunks(text, maxLength = 2000) {
+  const normalizedText = String(text || "").replace(/\r\n/g, "\n").trim();
+  if (!normalizedText) {
+    return [];
+  }
+
+  const chunks = [];
+  let remainingText = normalizedText;
+
+  while (remainingText.length > maxLength) {
+    let splitIndex = remainingText.lastIndexOf("\n", maxLength);
+    if (splitIndex <= 0) {
+      splitIndex = remainingText.lastIndexOf(" ", maxLength);
+    }
+    if (splitIndex <= 0) {
+      splitIndex = maxLength;
+    }
+
+    chunks.push(remainingText.slice(0, splitIndex).trim());
+    remainingText = remainingText.slice(splitIndex).trim();
+  }
+
+  if (remainingText) {
+    chunks.push(remainingText);
+  }
+
+  return chunks;
+}
+
+function buildTrainingGuideThreadName(title, fallbackTitle) {
+  return String(title || fallbackTitle).trim().slice(0, 100) || fallbackTitle;
+}
+
+async function publishTrainingGuide(guild, config, options) {
+  const forum = await getConfiguredTrainingForumChannel(guild, config);
+  if (!forum) {
+    throw new Error(t(getGuildLanguage(config), "configTrainingForumNotConfigured"));
+  }
+
+  const chunks = splitTextIntoChunks(options.markdownContent);
+  if (chunks.length === 0) {
+    throw new Error(t(getGuildLanguage(config), "trainingGuideInvalidFile"));
+  }
+
+  const thread = await forum.threads.create({
+    name: buildTrainingGuideThreadName(
+      options.title,
+      t(getGuildLanguage(config), "trainingGuideThreadFallbackTitle")
+    ),
+    message: {
+      content: chunks[0]
+    }
+  });
+
+  for (const chunk of chunks.slice(1)) {
+    await thread.send(chunk);
+  }
+
+  return thread;
+}
+
 async function ensureProfileThread(interaction, config, profile) {
   if (!config.forum_channel_id) {
     return null;
@@ -547,11 +651,14 @@ module.exports = {
   ensureUserProfile,
   getGuildConfig,
   getConfiguredRankRoleIds,
+  getConfiguredTrainingRoleIds,
   getActiveSessions,
   getLeaderboard,
   getOpenSession,
   getRecentSessions,
   getUserProfile,
+  canManageTrainingGuides,
+  publishTrainingGuide,
   syncCommandGuideMessage,
   wipeConfiguredForum,
   startService,

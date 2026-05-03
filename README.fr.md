@@ -10,16 +10,24 @@ English version: [README.md](README.md)
 - `/service stop`
 - `/service status`
 - `/leaderboard`
+- `/help`
+- `/begin`
 - `/config command-channel`
 - `/config forum-channel`
+- `/config training-forum`
 - `/config job-name`
 - `/config language`
 - `/config rank-role-add`
 - `/config rank-role-remove`
 - `/config rank-role-list`
 - `/config rank-role-clear`
+- `/config training-role-add`
+- `/config training-role-remove`
+- `/config training-role-list`
+- `/config training-role-clear`
 - `/config wipe-forum`
 - `/config show`
+- `/training-guide publish`
 
 ## Stack
 
@@ -122,10 +130,14 @@ Exemple :
 
 ### `/service status`
 
-Affiche le statut actuel de l'utilisateur.
+Affiche les agents actuellement en service.
 
 Exemple :
 `/service status`
+
+Utilite :
+- liste les agents actuellement en service
+- affiche l'heure de debut de chaque session active
 
 ### `/leaderboard`
 
@@ -133,6 +145,28 @@ Affiche les utilisateurs avec le plus de temps de service.
 
 Exemple :
 `/leaderboard`
+
+### `/help`
+
+Affiche un resume rapide des commandes disponibles.
+
+Exemple :
+`/help`
+
+Utilite :
+- affiche les commandes joueurs pour tout le monde
+- affiche aussi les commandes administrateur pour un admin serveur
+
+### `/begin`
+
+Affiche l'ordre recommande pour configurer le bot.
+
+Exemple :
+`/begin`
+
+Utilite :
+- guide la configuration etape par etape
+- aide a regler les salons, forums, langue, roles de rang et roles de formation
 
 ### `/config command-channel`
 
@@ -147,6 +181,13 @@ Definit le forum Discord utilise pour les profils utilisateurs.
 
 Exemple :
 `/config forum-channel channel:#service-profils`
+
+### `/config training-forum`
+
+Definit le forum Discord utilise pour les guides de formation.
+
+Exemple :
+`/config training-forum channel:#guides-formation`
 
 ### `/config job-name`
 
@@ -204,6 +245,34 @@ Vide la liste des roles de rang configures.
 Exemple :
 `/config rank-role-clear`
 
+### `/config training-role-add`
+
+Ajoute un role a la liste des roles autorises a publier des guides de formation.
+
+Exemple :
+`/config training-role-add role:@Formateur`
+
+### `/config training-role-remove`
+
+Retire un role de la liste des roles autorises a publier des guides de formation.
+
+Exemple :
+`/config training-role-remove role:@Formateur`
+
+### `/config training-role-list`
+
+Affiche les roles autorises a publier des guides de formation.
+
+Exemple :
+`/config training-role-list`
+
+### `/config training-role-clear`
+
+Vide la liste des roles autorises a publier des guides de formation.
+
+Exemple :
+`/config training-role-clear`
+
 ### `/config wipe-forum`
 
 Supprime tous les posts du forum configure et nettoie les liens de threads enregistres.
@@ -217,6 +286,19 @@ Affiche la configuration actuelle du serveur.
 
 Exemple :
 `/config show`
+
+### `/training-guide publish`
+
+Cree un nouveau post de guide de formation dans le forum configure a partir d'un fichier Markdown.
+
+Exemple :
+`/training-guide publish file:guide.md title:Controle routier de base`
+
+Notes :
+- seuls les roles de formation configures peuvent utiliser cette commande
+- le plus simple est d'ajouter `@Formateur` et `@Staff` avec `/config training-role-add`
+- le fichier doit etre un guide `.md`
+- si le fichier est long, le bot le coupe en plusieurs messages dans le post du forum
 
 ## Notes
 

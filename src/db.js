@@ -19,9 +19,11 @@ function initDatabase(databasePath) {
       command_channel_id TEXT,
       command_panel_message_id TEXT,
       forum_channel_id TEXT,
+      training_forum_channel_id TEXT,
       job_name TEXT,
       language TEXT DEFAULT 'en',
-      rank_role_ids TEXT DEFAULT '[]'
+      rank_role_ids TEXT DEFAULT '[]',
+      training_role_ids TEXT DEFAULT '[]'
     );
 
     CREATE TABLE IF NOT EXISTS user_profiles (
@@ -57,6 +59,14 @@ function initDatabase(databasePath) {
 
   if (!guildConfigColumns.includes("rank_role_ids")) {
     db.exec("ALTER TABLE guild_config ADD COLUMN rank_role_ids TEXT DEFAULT '[]';");
+  }
+
+  if (!guildConfigColumns.includes("training_forum_channel_id")) {
+    db.exec("ALTER TABLE guild_config ADD COLUMN training_forum_channel_id TEXT;");
+  }
+
+  if (!guildConfigColumns.includes("training_role_ids")) {
+    db.exec("ALTER TABLE guild_config ADD COLUMN training_role_ids TEXT DEFAULT '[]';");
   }
 
   return db;

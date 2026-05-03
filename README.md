@@ -10,16 +10,24 @@ French version: [README.fr.md](README.fr.md)
 - `/service stop`
 - `/service status`
 - `/leaderboard`
+- `/help`
+- `/begin`
 - `/config command-channel`
 - `/config forum-channel`
+- `/config training-forum`
 - `/config job-name`
 - `/config language`
 - `/config rank-role-add`
 - `/config rank-role-remove`
 - `/config rank-role-list`
 - `/config rank-role-clear`
+- `/config training-role-add`
+- `/config training-role-remove`
+- `/config training-role-list`
+- `/config training-role-clear`
 - `/config wipe-forum`
 - `/config show`
+- `/training-guide publish`
 
 ## Stack
 
@@ -147,15 +155,14 @@ Use:
 
 ### `/service status`
 
-Shows the current user status.
+Shows the agents currently on duty.
 
 Example:
 `/service status`
 
 Use:
-- shows whether the user is on duty or off duty
-- shows the current session start time
-- shows the total accumulated time
+- lists the agents currently on duty
+- shows when each active session started
 
 ### `/leaderboard`
 
@@ -167,6 +174,28 @@ Example:
 Use:
 - sorts users by total service time
 - helps track member activity
+
+### `/help`
+
+Shows a quick overview of the available commands.
+
+Example:
+`/help`
+
+Use:
+- shows player commands for everyone
+- shows administrator commands when used by a server admin
+
+### `/begin`
+
+Shows the recommended setup order for administrators.
+
+Example:
+`/begin`
+
+Use:
+- explains how to configure the server step by step
+- helps set up channels, forums, language, rank roles, and training roles
 
 ### `/config command-channel`
 
@@ -181,6 +210,13 @@ Sets the Discord forum used for user profiles.
 
 Example:
 `/config forum-channel channel:#service-profiles`
+
+### `/config training-forum`
+
+Sets the Discord forum used for training guides.
+
+Example:
+`/config training-forum channel:#training-guides`
 
 ### `/config job-name`
 
@@ -238,6 +274,34 @@ Clears the configured rank-role list.
 Example:
 `/config rank-role-clear`
 
+### `/config training-role-add`
+
+Adds a role to the list allowed to publish training guides.
+
+Example:
+`/config training-role-add role:@Trainer`
+
+### `/config training-role-remove`
+
+Removes a role from the list allowed to publish training guides.
+
+Example:
+`/config training-role-remove role:@Trainer`
+
+### `/config training-role-list`
+
+Shows the roles allowed to publish training guides.
+
+Example:
+`/config training-role-list`
+
+### `/config training-role-clear`
+
+Clears the list of roles allowed to publish training guides.
+
+Example:
+`/config training-role-clear`
+
 ### `/config wipe-forum`
 
 Deletes every post in the configured forum and clears stored forum thread links.
@@ -251,6 +315,19 @@ Shows the current server configuration.
 
 Example:
 `/config show`
+
+### `/training-guide publish`
+
+Creates a new training guide post in the configured training forum from a Markdown file.
+
+Example:
+`/training-guide publish file:guide.md title:Traffic Stop Basics`
+
+Notes:
+- only configured training roles can use this command
+- a common setup is to add both `@Trainer` and `@Staff` with `/config training-role-add`
+- the file should be a `.md` guide
+- if the file is long, the bot will split it into multiple messages inside the forum post
 
 ## Notes
 
