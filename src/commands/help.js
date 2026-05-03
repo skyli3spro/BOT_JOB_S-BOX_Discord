@@ -17,6 +17,7 @@ async function execute(interaction) {
     `- \`/service stop\` - ${t(language, "helpServiceStop")}`,
     `- \`/service status\` - ${t(language, "helpServiceStatus")}`,
     `- \`/leaderboard\` - ${t(language, "helpLeaderboard")}`,
+    `- \`/report ...\` - ${t(language, "helpReportCommand")}`,
     `- \`/help\` - ${t(language, "helpHelpCommand")}`
   ];
 
@@ -27,13 +28,18 @@ async function execute(interaction) {
       `- \`/begin\` - ${t(language, "helpBeginCommand")}`,
       `- \`/config command-channel\` - ${t(language, "helpConfigCommandChannel")}`,
       `- \`/config forum-channel\` - ${t(language, "helpConfigForumChannel")}`,
+      `- \`/config report-channel\` - ${t(language, "helpConfigReportChannel")}`,
+      `- \`/config report-forum\` - ${t(language, "helpConfigReportForum")}`,
+      `- \`/config log-channel\` - ${t(language, "helpConfigLogChannel")}`,
       `- \`/config job-name\` - ${t(language, "helpConfigJobName")}`,
       `- \`/config language\` - ${t(language, "helpConfigLanguage")}`,
       `- \`/config show\` - ${t(language, "helpConfigShow")}`,
       `- \`/config rank-role-add\` - ${t(language, "helpConfigRankRoles")}`,
       `- \`/config training-forum\` - ${t(language, "helpConfigTrainingForum")}`,
       `- \`/config training-role-add\` - ${t(language, "helpConfigTrainingRoles")}`,
+      `- \`/guide post\` - ${t(language, "helpGuidePost")}`,
       `- \`/config wipe-forum\` - ${t(language, "helpConfigWipeForum")}`,
+      `- \`/config reset-...\` - ${t(language, "helpConfigResetData")}`,
       `- \`/training-guide publish\` - ${t(language, "helpTrainingGuide")}`
     );
   } else {

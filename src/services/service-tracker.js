@@ -2,9 +2,9 @@ const { ChannelType, EmbedBuilder } = require("discord.js");
 const { getDb } = require("../db");
 const { getGuildLanguage, t } = require("../utils/i18n");
 const {
-  getLiveGuildMember,
-  getLiveServerDisplayName,
-  getMemberRankName
+  getGuildMemberById,
+  getMemberRankName,
+  getServerDisplayNameByUserId
 } = require("../utils/members");
 const {
   formatDiscordTimestamp,
@@ -50,9 +50,12 @@ function upsertGuildConfig(guildId, updates) {
   const current = getGuildConfig(guildId) || {
     guild_id: guildId,
     command_channel_id: null,
+    report_channel_id: null,
     command_panel_message_id: null,
     forum_channel_id: null,
     training_forum_channel_id: null,
+    report_forum_channel_id: null,
+    log_channel_id: null,
     job_name: null,
     language: "en",
     rank_role_ids: "[]",
@@ -82,9 +85,12 @@ function upsertGuildConfig(guildId, updates) {
       INSERT INTO guild_config (
         guild_id,
         command_channel_id,
+        report_channel_id,
         command_panel_message_id,
         forum_channel_id,
         training_forum_channel_id,
+        report_forum_channel_id,
+        log_channel_id,
         job_name,
         language,
         rank_role_ids,
@@ -93,9 +99,12 @@ function upsertGuildConfig(guildId, updates) {
       VALUES (
         @guild_id,
         @command_channel_id,
+        @report_channel_id,
         @command_panel_message_id,
         @forum_channel_id,
         @training_forum_channel_id,
+        @report_forum_channel_id,
+        @log_channel_id,
         @job_name,
         @language,
         @rank_role_ids,
@@ -103,9 +112,12 @@ function upsertGuildConfig(guildId, updates) {
       )
       ON CONFLICT(guild_id) DO UPDATE SET
         command_channel_id = excluded.command_channel_id,
+        report_channel_id = excluded.report_channel_id,
         command_panel_message_id = excluded.command_panel_message_id,
         forum_channel_id = excluded.forum_channel_id,
         training_forum_channel_id = excluded.training_forum_channel_id,
+        report_forum_channel_id = excluded.report_forum_channel_id,
+        log_channel_id = excluded.log_channel_id,
         job_name = excluded.job_name,
         language = excluded.language,
         rank_role_ids = excluded.rank_role_ids,
@@ -293,6 +305,66 @@ async function getConfiguredCommandChannel(guild, config) {
   return channel;
 }
 
+async function getConfiguredReportCommandChannel(guild, config) {
+  if (!config?.report_channel_id) {
+    return null;
+  }
+
+  const channel = await guild.channels.fetch(config.report_channel_id).catch(() => null);
+  if (!channel) {
+    return null;
+  }
+
+  if (
+    channel.type !== ChannelType.GuildText
+    && channel.type !== ChannelType.GuildAnnouncement
+  ) {
+    return null;
+  }
+
+  return channel;
+}
+
+async function getConfiguredLogChannel(guild, config) {
+  if (!config?.log_channel_id) {
+    return null;
+  }
+
+  const channel = await guild.channels.fetch(config.log_channel_id).catch(() => null);
+  if (!channel) {
+    return null;
+  }
+
+  if (
+    channel.type !== ChannelType.GuildText
+    && channel.type !== ChannelType.GuildAnnouncement
+  ) {
+    return null;
+  }
+
+  return channel;
+}
+
+async function logStaffEvent(guild, config, details) {
+  const channel = await getConfiguredLogChannel(guild, config);
+  if (!channel) {
+    return null;
+  }
+
+  const language = getGuildLanguage(config);
+  const embed = new EmbedBuilder()
+    .setColor(details.color || 0x5865f2)
+    .setTitle(details.title || t(language, "staffLogDefaultTitle"))
+    .setDescription(details.description || t(language, "staffLogEmptyDescription"))
+    .setTimestamp(new Date());
+
+  if (details.footer) {
+    embed.setFooter({ text: details.footer });
+  }
+
+  return channel.send({ embeds: [embed] }).catch(() => null);
+}
+
 function buildCommandGuidePayload(config) {
   const language = getGuildLanguage(config);
   const embed = new EmbedBuilder()
@@ -395,6 +467,19 @@ async function getConfiguredTrainingForumChannel(guild, config) {
   return forum;
 }
 
+async function getConfiguredReportForumChannel(guild, config) {
+  if (!config?.report_forum_channel_id) {
+    return null;
+  }
+
+  const forum = await guild.channels.fetch(config.report_forum_channel_id).catch(() => null);
+  if (!forum || forum.type !== ChannelType.GuildForum) {
+    throw new Error(t(getGuildLanguage(config), "configReportForumNotConfigured"));
+  }
+
+  return forum;
+}
+
 function canManageTrainingGuides(member, config) {
   if (!member) {
     return false;
@@ -469,19 +554,271 @@ async function publishTrainingGuide(guild, config, options) {
   return thread;
 }
 
+function createReportEntry(guildId, data) {
+  const createdAt = new Date().toISOString();
+  const result = getDb()
+    .prepare(
+      `
+      INSERT INTO report_entries (
+        guild_id,
+        author_user_id,
+        title,
+        subject_name,
+        summary,
+        status,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, 'open', ?)
+      `
+    )
+    .run(
+      guildId,
+      data.author_user_id,
+      data.title,
+      data.subject_name || null,
+      data.summary,
+      createdAt
+    );
+
+  return getDb()
+    .prepare("SELECT * FROM report_entries WHERE id = ?")
+    .get(result.lastInsertRowid);
+}
+
+function listReportEntries(guildId, status = "all", limit = 10) {
+  const normalizedStatus = status === "open" || status === "closed" ? status : "all";
+  const normalizedLimit = Math.max(1, Math.min(Number(limit) || 10, 25));
+
+  if (normalizedStatus === "all") {
+    return getDb()
+      .prepare(
+        `
+        SELECT *
+        FROM report_entries
+        WHERE guild_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+        `
+      )
+      .all(guildId, normalizedLimit);
+  }
+
+  return getDb()
+    .prepare(
+      `
+      SELECT *
+      FROM report_entries
+      WHERE guild_id = ? AND status = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+      `
+    )
+    .all(guildId, normalizedStatus, normalizedLimit);
+}
+
+function getReportEntryById(guildId, reportId) {
+  return getDb()
+    .prepare(
+      `
+      SELECT *
+      FROM report_entries
+      WHERE guild_id = ? AND id = ?
+      `
+    )
+    .get(guildId, reportId);
+}
+
+function updateReportEntry(guildId, reportId, updates) {
+  const current = getReportEntryById(guildId, reportId);
+  if (!current) {
+    return null;
+  }
+
+  const merged = {
+    ...current,
+    ...updates
+  };
+
+  const next = {
+    guild_id: guildId,
+    id: reportId,
+    title: merged.title,
+    subject_name: merged.subject_name || null,
+    summary: merged.summary,
+    status: merged.status,
+    created_at: merged.created_at,
+    thread_id: merged.thread_id || null,
+    closed_at: merged.closed_at || null,
+    closed_by_user_id: merged.closed_by_user_id || null
+  };
+
+  getDb()
+    .prepare(
+      `
+      UPDATE report_entries
+      SET title = @title,
+          subject_name = @subject_name,
+          summary = @summary,
+          status = @status,
+          created_at = @created_at,
+          thread_id = @thread_id,
+          closed_at = @closed_at,
+          closed_by_user_id = @closed_by_user_id
+      WHERE guild_id = @guild_id AND id = @id
+      `
+    )
+    .run(next);
+
+  return getReportEntryById(guildId, reportId);
+}
+
+function getReportThreadName(report, language) {
+  const isClosed = report.status === "closed";
+  const statusBadge = isClosed
+    ? t(language, "reportThreadClosedBadge")
+    : t(language, "reportThreadOpenBadge");
+
+  return `${statusBadge} #${report.id} - ${report.title}`.slice(0, 100);
+}
+
+function buildReportThreadContent(report, language) {
+  const createdAt = formatDiscordTimestamp(new Date(report.created_at));
+  const closedAt = report.closed_at
+    ? formatDiscordTimestamp(new Date(report.closed_at))
+    : null;
+  const subject = report.subject_name || t(language, "reportNoSubject");
+  const statusLabel = t(
+    language,
+    report.status === "closed" ? "reportStatusClosed" : "reportStatusOpen"
+  );
+
+  const lines = [
+    `**${t(language, "reportThreadIdLabel")}:** #${report.id}`,
+    `**${t(language, "reportStatusLabel")}:** ${statusLabel}`,
+    `**${t(language, "reportAuthorLabel")}:** <@${report.author_user_id}>`,
+    `**${t(language, "reportSubjectLabel")}:** ${subject}`,
+    `**${t(language, "reportCreatedAtLabel")}:** ${createdAt}`,
+    `**${t(language, "reportSummaryLabel")}:** ${report.summary}`
+  ];
+
+  if (closedAt) {
+    lines.splice(
+      5,
+      0,
+      `**${t(language, "reportClosedAtLabel")}:** ${closedAt}`
+    );
+  }
+
+  if (report.closed_by_user_id) {
+    lines.splice(
+      closedAt ? 6 : 5,
+      0,
+      `**${t(language, "reportClosedByLabel")}:** <@${report.closed_by_user_id}>`
+    );
+  }
+
+  return lines.join("\n");
+}
+
+async function syncReportThread(guild, config, report, options = {}) {
+  const createIfMissing = options.createIfMissing !== false;
+  const forum = await getConfiguredReportForumChannel(guild, config);
+  if (!forum) {
+    return null;
+  }
+
+  const language = getGuildLanguage(config);
+  const threadName = getReportThreadName(report, language);
+  const content = buildReportThreadContent(report, language);
+
+  if (report.thread_id) {
+    const existingThread = await guild.channels.fetch(report.thread_id).catch(() => null);
+    if (existingThread?.parentId === forum.id) {
+      if (existingThread.archived && !existingThread.locked) {
+        await existingThread.setArchived(false).catch(() => null);
+      }
+
+      if (existingThread.name !== threadName) {
+        await existingThread.setName(threadName).catch(() => null);
+      }
+
+      const starterMessage = await existingThread.fetchStarterMessage().catch(() => null);
+      if (starterMessage) {
+        await starterMessage.edit(content).catch(() => null);
+      } else {
+        await existingThread.send(content).catch(() => null);
+      }
+
+      return existingThread;
+    }
+
+    if (!createIfMissing) {
+      return null;
+    }
+  }
+
+  if (!createIfMissing) {
+    return null;
+  }
+
+  const thread = await forum.threads.create({
+    name: threadName,
+    message: {
+      content
+    }
+  });
+
+  updateReportEntry(report.guild_id, report.id, {
+    thread_id: thread.id
+  });
+
+  return thread;
+}
+
+function closeReportEntry(guildId, reportId, closedByUserId) {
+  const report = getReportEntryById(guildId, reportId);
+  if (!report || report.status === "closed") {
+    return report || null;
+  }
+
+  getDb()
+    .prepare(
+      `
+      UPDATE report_entries
+      SET status = 'closed',
+          closed_at = ?,
+          closed_by_user_id = ?
+      WHERE guild_id = ? AND id = ?
+      `
+    )
+    .run(new Date().toISOString(), closedByUserId, guildId, reportId);
+
+  return getReportEntryById(guildId, reportId);
+}
+
 async function ensureProfileThread(interaction, config, profile) {
+  return ensureProfileThreadForUser(
+    interaction.guild,
+    interaction.guildId,
+    interaction.user.id,
+    config,
+    profile
+  );
+}
+
+async function ensureProfileThreadForUser(guild, guildId, userId, config, profile) {
   if (!config.forum_channel_id) {
     return null;
   }
 
-  const forum = await getConfiguredForumChannel(interaction.guild, config);
+  const forum = await getConfiguredForumChannel(guild, config);
 
-  const displayName = await getLiveServerDisplayName(interaction);
+  const displayName = await getServerDisplayNameByUserId(guild, userId);
   const expectedThreadName = getProfileThreadName(displayName, config.job_name);
 
   if (profile.forum_thread_id) {
     try {
-      const existingThread = await interaction.guild.channels.fetch(
+      const existingThread = await guild.channels.fetch(
         profile.forum_thread_id
       );
 
@@ -508,7 +845,7 @@ async function ensureProfileThread(interaction, config, profile) {
     }
   });
 
-  updateUserProfile(interaction.guildId, interaction.user.id, {
+  updateUserProfile(guildId, userId, {
     forum_thread_id: post.id,
     total_time: profile.total_time || 0
   });
@@ -516,24 +853,24 @@ async function ensureProfileThread(interaction, config, profile) {
   return post;
 }
 
-async function updateProfileThread(interaction, status) {
-  const config = getGuildConfig(interaction.guildId);
+async function updateProfileThreadForUser(guild, guildId, userId, status) {
+  const config = getGuildConfig(guildId);
   if (!config || !config.forum_channel_id) {
     return;
   }
   const language = getGuildLanguage(config);
 
-  const profile = ensureUserProfile(interaction.guildId, interaction.user.id);
-  const thread = await ensureProfileThread(interaction, config, profile);
+  const profile = ensureUserProfile(guildId, userId);
+  const thread = await ensureProfileThreadForUser(guild, guildId, userId, config, profile);
   if (!thread) {
     return;
   }
 
-  const refreshedProfile = getUserProfile(interaction.guildId, interaction.user.id);
-  const recentSessions = getRecentSessions(interaction.guildId, interaction.user.id, 5);
-  const openSession = getOpenSession(interaction.guildId, interaction.user.id);
-  const member = await getLiveGuildMember(interaction);
-  const displayName = await getLiveServerDisplayName(interaction);
+  const refreshedProfile = getUserProfile(guildId, userId);
+  const recentSessions = getRecentSessions(guildId, userId, 5);
+  const openSession = getOpenSession(guildId, userId);
+  const member = await getGuildMemberById(guild, userId);
+  const displayName = await getServerDisplayNameByUserId(guild, userId);
   const rankName =
     getMemberRankName(member, getConfiguredRankRoleIds(config))
     || t(language, "forumRankNone");
@@ -584,6 +921,15 @@ async function updateProfileThread(interaction, status) {
   }
 }
 
+async function updateProfileThread(interaction, status) {
+  return updateProfileThreadForUser(
+    interaction.guild,
+    interaction.guildId,
+    interaction.user.id,
+    status
+  );
+}
+
 function clearForumThreadIdsForGuild(guildId) {
   getDb()
     .prepare(
@@ -594,6 +940,157 @@ function clearForumThreadIdsForGuild(guildId) {
       `
     )
     .run(guildId);
+}
+
+async function deleteThreadById(guild, threadId, reason) {
+  if (!guild || !threadId) {
+    return false;
+  }
+
+  try {
+    const thread = await guild.channels.fetch(threadId);
+    if (!thread) {
+      return false;
+    }
+
+    await thread.delete(reason);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resetUserServiceData(guild, guildId, userId) {
+  const profile = getUserProfile(guildId, userId);
+  const deletedProfileThreads = profile?.forum_thread_id
+    ? Number(
+        await deleteThreadById(
+          guild,
+          profile.forum_thread_id,
+          "User service data reset requested by administrator"
+        )
+      )
+    : 0;
+
+  const deletedSessions = getDb()
+    .prepare(
+      `
+      DELETE FROM service_sessions
+      WHERE guild_id = ? AND user_id = ?
+      `
+    )
+    .run(guildId, userId).changes;
+
+  const deletedProfiles = getDb()
+    .prepare(
+      `
+      DELETE FROM user_profiles
+      WHERE guild_id = ? AND user_id = ?
+      `
+    )
+    .run(guildId, userId).changes;
+
+  return {
+    deletedProfileThreads,
+    deletedProfiles,
+    deletedSessions
+  };
+}
+
+async function resetGuildServiceData(guild, guildId) {
+  const profiles = getDb()
+    .prepare(
+      `
+      SELECT forum_thread_id
+      FROM user_profiles
+      WHERE guild_id = ? AND forum_thread_id IS NOT NULL
+      `
+    )
+    .all(guildId);
+
+  let deletedProfileThreads = 0;
+  for (const profile of profiles) {
+    deletedProfileThreads += Number(
+      await deleteThreadById(
+        guild,
+        profile.forum_thread_id,
+        "Guild service data reset requested by administrator"
+      )
+    );
+  }
+
+  const deletedSessions = getDb()
+    .prepare(
+      `
+      DELETE FROM service_sessions
+      WHERE guild_id = ?
+      `
+    )
+    .run(guildId).changes;
+
+  const deletedProfiles = getDb()
+    .prepare(
+      `
+      DELETE FROM user_profiles
+      WHERE guild_id = ?
+      `
+    )
+    .run(guildId).changes;
+
+  return {
+    deletedProfileThreads,
+    deletedProfiles,
+    deletedSessions
+  };
+}
+
+async function resetAllServiceData(client) {
+  const profileRows = getDb()
+    .prepare(
+      `
+      SELECT guild_id, forum_thread_id
+      FROM user_profiles
+      WHERE forum_thread_id IS NOT NULL
+      `
+    )
+    .all();
+
+  let deletedProfileThreads = 0;
+  const guildCache = new Map();
+
+  for (const row of profileRows) {
+    let guild = guildCache.get(row.guild_id);
+    if (guild === undefined) {
+      guild = client.guilds.cache.get(row.guild_id)
+        || await client.guilds.fetch(row.guild_id).catch(() => null);
+      guildCache.set(row.guild_id, guild || null);
+    }
+
+    deletedProfileThreads += Number(
+      await deleteThreadById(
+        guild,
+        row.forum_thread_id,
+        "Global service data reset requested by administrator"
+      )
+    );
+  }
+
+  const deletedSessions = getDb()
+    .prepare("DELETE FROM service_sessions")
+    .run().changes;
+  const deletedProfiles = getDb()
+    .prepare("DELETE FROM user_profiles")
+    .run().changes;
+  const deletedConfigs = getDb()
+    .prepare("DELETE FROM guild_config")
+    .run().changes;
+
+  return {
+    deletedConfigs,
+    deletedProfileThreads,
+    deletedProfiles,
+    deletedSessions
+  };
 }
 
 async function wipeConfiguredForum(guild, config) {
@@ -646,8 +1143,31 @@ function assertCommandChannel(interaction, config) {
   }
 }
 
+function assertReportCommandChannel(interaction, config) {
+  if (!config) {
+    return;
+  }
+
+  const reportChannelId = config.report_channel_id;
+  const fallbackChannelId = config.command_channel_id;
+  const reportForumId = config.report_forum_channel_id;
+  const parentId = interaction.channel?.parentId || null;
+
+  if (reportChannelId) {
+    if (interaction.channelId !== reportChannelId && parentId !== reportForumId) {
+      throw new Error(t(getGuildLanguage(config), "reportChannelOnly"));
+    }
+    return;
+  }
+
+  if (fallbackChannelId && interaction.channelId !== fallbackChannelId && parentId !== reportForumId) {
+    throw new Error(t(getGuildLanguage(config), "reportChannelOnly"));
+  }
+}
+
 module.exports = {
   assertCommandChannel,
+  assertReportCommandChannel,
   ensureUserProfile,
   getGuildConfig,
   getConfiguredRankRoleIds,
@@ -658,11 +1178,25 @@ module.exports = {
   getRecentSessions,
   getUserProfile,
   canManageTrainingGuides,
+  closeReportEntry,
+  createReportEntry,
   publishTrainingGuide,
+  getConfiguredLogChannel,
+  getConfiguredReportCommandChannel,
+  getConfiguredReportForumChannel,
+  resetAllServiceData,
+  resetGuildServiceData,
+  resetUserServiceData,
+  getReportEntryById,
+  syncReportThread,
+  updateReportEntry,
+  listReportEntries,
+  logStaffEvent,
   syncCommandGuideMessage,
   wipeConfiguredForum,
   startService,
   stopService,
   updateProfileThread,
+  updateProfileThreadForUser,
   upsertGuildConfig
 };

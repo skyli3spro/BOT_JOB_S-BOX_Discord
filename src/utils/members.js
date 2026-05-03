@@ -61,6 +61,14 @@ async function getLiveGuildMember(interaction) {
   return interaction.guild.members.fetch(interaction.user.id).catch(() => null);
 }
 
+async function getGuildMemberById(guild, userId) {
+  if (!guild || !userId) {
+    return null;
+  }
+
+  return guild.members.fetch(userId).catch(() => null);
+}
+
 async function getLiveServerDisplayName(interaction) {
   if (!interaction?.guild || !interaction?.user?.id) {
     return getServerDisplayName(interaction);
@@ -71,9 +79,16 @@ async function getLiveServerDisplayName(interaction) {
   return getServerDisplayName(member || interaction);
 }
 
+async function getServerDisplayNameByUserId(guild, userId) {
+  const member = await getGuildMemberById(guild, userId);
+  return getServerDisplayName(member || { username: userId });
+}
+
 module.exports = {
+  getGuildMemberById,
   getLiveGuildMember,
   getMemberRankName,
   getLiveServerDisplayName,
+  getServerDisplayNameByUserId,
   getServerDisplayName
 };

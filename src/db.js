@@ -17,9 +17,12 @@ function initDatabase(databasePath) {
     CREATE TABLE IF NOT EXISTS guild_config (
       guild_id TEXT PRIMARY KEY,
       command_channel_id TEXT,
+      report_channel_id TEXT,
       command_panel_message_id TEXT,
       forum_channel_id TEXT,
       training_forum_channel_id TEXT,
+      report_forum_channel_id TEXT,
+      log_channel_id TEXT,
       job_name TEXT,
       language TEXT DEFAULT 'en',
       rank_role_ids TEXT DEFAULT '[]',
@@ -42,6 +45,20 @@ function initDatabase(databasePath) {
       ended_at TEXT,
       duration INTEGER
     );
+
+    CREATE TABLE IF NOT EXISTS report_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      author_user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      subject_name TEXT,
+      summary TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TEXT NOT NULL,
+      thread_id TEXT,
+      closed_at TEXT,
+      closed_by_user_id TEXT
+    );
   `);
 
   const guildConfigColumns = db
@@ -57,6 +74,10 @@ function initDatabase(databasePath) {
     db.exec("ALTER TABLE guild_config ADD COLUMN command_panel_message_id TEXT;");
   }
 
+  if (!guildConfigColumns.includes("report_channel_id")) {
+    db.exec("ALTER TABLE guild_config ADD COLUMN report_channel_id TEXT;");
+  }
+
   if (!guildConfigColumns.includes("rank_role_ids")) {
     db.exec("ALTER TABLE guild_config ADD COLUMN rank_role_ids TEXT DEFAULT '[]';");
   }
@@ -65,8 +86,25 @@ function initDatabase(databasePath) {
     db.exec("ALTER TABLE guild_config ADD COLUMN training_forum_channel_id TEXT;");
   }
 
+  if (!guildConfigColumns.includes("report_forum_channel_id")) {
+    db.exec("ALTER TABLE guild_config ADD COLUMN report_forum_channel_id TEXT;");
+  }
+
+  if (!guildConfigColumns.includes("log_channel_id")) {
+    db.exec("ALTER TABLE guild_config ADD COLUMN log_channel_id TEXT;");
+  }
+
   if (!guildConfigColumns.includes("training_role_ids")) {
     db.exec("ALTER TABLE guild_config ADD COLUMN training_role_ids TEXT DEFAULT '[]';");
+  }
+
+  const reportEntryColumns = db
+    .prepare("PRAGMA table_info(report_entries)")
+    .all()
+    .map((column) => column.name);
+
+  if (!reportEntryColumns.includes("thread_id")) {
+    db.exec("ALTER TABLE report_entries ADD COLUMN thread_id TEXT;");
   }
 
   return db;

@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require("discord.js");
 const {
   canManageTrainingGuides,
   getGuildConfig,
+  logStaffEvent,
   publishTrainingGuide
 } = require("../services/service-tracker");
 const { getGuildLanguage, t } = require("../utils/i18n");
@@ -106,6 +107,15 @@ async function execute(interaction) {
 
     await interaction.editReply({
       content: t(language, "trainingGuidePublishSuccess", { thread })
+    });
+    await logStaffEvent(interaction.guild, config, {
+      title: t(language, "staffLogGuideTitle"),
+      description: t(language, "trainingGuidePublishLog", {
+        author: interaction.user,
+        thread,
+        title
+      }),
+      color: 0xc27c0e
     });
   } catch (error) {
     const messageKey =

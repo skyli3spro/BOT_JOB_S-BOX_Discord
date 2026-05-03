@@ -7,6 +7,10 @@ const {
   getConfiguredTrainingRoleIds,
   getConfiguredRankRoleIds,
   getGuildConfig,
+  logStaffEvent,
+  resetAllServiceData,
+  resetGuildServiceData,
+  resetUserServiceData,
   syncCommandGuideMessage,
   upsertGuildConfig,
   wipeConfiguredForum
@@ -19,6 +23,22 @@ const {
   normalizeLanguage,
   t
 } = require("../utils/i18n");
+
+const STANDARD_RESET_CONFIRMATIONS = ["CONFIRM", "CONFIRMER"];
+const FULL_RESET_CONFIRMATIONS = ["RESET-ALL", "REINITIALISER-TOUT"];
+
+function matchesConfirmation(value, allowedValues) {
+  const normalizedValue = String(value || "").trim().toUpperCase();
+  return allowedValues.includes(normalizedValue);
+}
+
+async function logConfigMutation(interaction, config, content) {
+  const language = getGuildLanguage(config);
+  await logStaffEvent(interaction.guild, config, {
+    title: t(language, "staffLogConfigTitle"),
+    description: content
+  });
+}
 
 const data = new SlashCommandBuilder()
   .setName("config")
@@ -50,6 +70,30 @@ const data = new SlashCommandBuilder()
   )
   .addSubcommand((subcommand) =>
     subcommand
+      .setName("report-channel")
+      .setDescription("Set the allowed channel for report commands.")
+      .addChannelOption((option) =>
+        option
+          .setName("channel")
+          .setDescription("Text channel for report commands")
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("report-forum")
+      .setDescription("Set the forum used for report tracking.")
+      .addChannelOption((option) =>
+        option
+          .setName("channel")
+          .setDescription("Forum used for report tracking")
+          .addChannelTypes(ChannelType.GuildForum)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
       .setName("training-forum")
       .setDescription("Set the forum used for training guides.")
       .addChannelOption((option) =>
@@ -57,6 +101,18 @@ const data = new SlashCommandBuilder()
           .setName("channel")
           .setDescription("Forum used for training guides")
           .addChannelTypes(ChannelType.GuildForum)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("log-channel")
+      .setDescription("Set the staff log channel used by the bot.")
+      .addChannelOption((option) =>
+        option
+          .setName("channel")
+          .setDescription("Text channel used for staff logs")
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
           .setRequired(true)
       )
   )
@@ -164,6 +220,45 @@ const data = new SlashCommandBuilder()
   )
   .addSubcommand((subcommand) =>
     subcommand
+      .setName("reset-user-data")
+      .setDescription("Delete all service data for one user.")
+      .addUserOption((option) =>
+        option
+          .setName("user")
+          .setDescription("User whose service data should be deleted")
+          .setRequired(true)
+      )
+      .addStringOption((option) =>
+        option
+          .setName("confirmation")
+          .setDescription("Type CONFIRM to validate the user data reset")
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("reset-job-data")
+      .setDescription("Delete all service data for this server job.")
+      .addStringOption((option) =>
+        option
+          .setName("confirmation")
+          .setDescription("Type CONFIRM to validate the server job reset")
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("reset-all-data")
+      .setDescription("Delete the complete bot database.")
+      .addStringOption((option) =>
+        option
+          .setName("confirmation")
+          .setDescription("Type RESET-ALL to validate the full database reset")
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
       .setName("show")
       .setDescription("Show the current configuration.")
   );
@@ -197,9 +292,24 @@ async function execute(interaction) {
             ? `<#${config.forum_channel_id}>`
             : t(currentLanguage, "configNotSet")
         }`,
+        `${t(currentLanguage, "configLabelReportChannel")}: ${
+          config.report_channel_id
+            ? `<#${config.report_channel_id}>`
+            : t(currentLanguage, "configNotSet")
+        }`,
+        `${t(currentLanguage, "configLabelReportForumChannel")}: ${
+          config.report_forum_channel_id
+            ? `<#${config.report_forum_channel_id}>`
+            : t(currentLanguage, "configNotSet")
+        }`,
         `${t(currentLanguage, "configLabelTrainingForumChannel")}: ${
           config.training_forum_channel_id
             ? `<#${config.training_forum_channel_id}>`
+            : t(currentLanguage, "configNotSet")
+        }`,
+        `${t(currentLanguage, "configLabelLogChannel")}: ${
+          config.log_channel_id
+            ? `<#${config.log_channel_id}>`
             : t(currentLanguage, "configNotSet")
         }`,
         `${t(currentLanguage, "configLabelJobName")}: ${
@@ -239,6 +349,11 @@ async function execute(interaction) {
       }),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      nextConfig,
+      t(currentLanguage, "configCommandChannelSaved", { channel })
+    );
     return;
   }
 
@@ -254,6 +369,51 @@ async function execute(interaction) {
       }),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      getGuildConfig(interaction.guildId),
+      t(currentLanguage, "configForumChannelSaved", { channel })
+    );
+    return;
+  }
+
+  if (subcommand === "report-channel") {
+    const channel = interaction.options.getChannel("channel", true);
+    upsertGuildConfig(interaction.guildId, {
+      report_channel_id: channel.id,
+      language: currentLanguage
+    });
+    await interaction.reply({
+      content: t(currentLanguage, "configReportChannelSaved", {
+        channel
+      }),
+      ephemeral: true
+    });
+    await logConfigMutation(
+      interaction,
+      getGuildConfig(interaction.guildId),
+      t(currentLanguage, "configReportChannelSaved", { channel })
+    );
+    return;
+  }
+
+  if (subcommand === "report-forum") {
+    const channel = interaction.options.getChannel("channel", true);
+    upsertGuildConfig(interaction.guildId, {
+      report_forum_channel_id: channel.id,
+      language: currentLanguage
+    });
+    await interaction.reply({
+      content: t(currentLanguage, "configReportForumChannelSaved", {
+        channel
+      }),
+      ephemeral: true
+    });
+    await logConfigMutation(
+      interaction,
+      getGuildConfig(interaction.guildId),
+      t(currentLanguage, "configReportForumChannelSaved", { channel })
+    );
     return;
   }
 
@@ -269,6 +429,26 @@ async function execute(interaction) {
       }),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      getGuildConfig(interaction.guildId),
+      t(currentLanguage, "configTrainingForumChannelSaved", { channel })
+    );
+    return;
+  }
+
+  if (subcommand === "log-channel") {
+    const channel = interaction.options.getChannel("channel", true);
+    const nextConfig = upsertGuildConfig(interaction.guildId, {
+      log_channel_id: channel.id,
+      language: currentLanguage
+    });
+    const message = t(currentLanguage, "configLogChannelSaved", { channel });
+    await interaction.reply({
+      content: message,
+      ephemeral: true
+    });
+    await logConfigMutation(interaction, nextConfig, message);
     return;
   }
 
@@ -283,6 +463,11 @@ async function execute(interaction) {
       content: t(currentLanguage, "configJobNameSaved", { value }),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      nextConfig,
+      t(currentLanguage, "configJobNameSaved", { value })
+    );
     return;
   }
 
@@ -301,6 +486,13 @@ async function execute(interaction) {
       }),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      nextConfig,
+      t(value, "configLanguageSaved", {
+        languageLabel: getLanguageLabel(value, value)
+      })
+    );
     return;
   }
 
@@ -322,6 +514,11 @@ async function execute(interaction) {
       content: t(currentLanguage, "configRankRoleAddSaved", { role }),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      getGuildConfig(interaction.guildId),
+      t(currentLanguage, "configRankRoleAddSaved", { role })
+    );
     return;
   }
 
@@ -343,6 +540,11 @@ async function execute(interaction) {
       content: t(currentLanguage, "configRankRoleRemoveSaved", { role }),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      getGuildConfig(interaction.guildId),
+      t(currentLanguage, "configRankRoleRemoveSaved", { role })
+    );
     return;
   }
 
@@ -368,6 +570,11 @@ async function execute(interaction) {
       content: t(currentLanguage, "configRankRoleClearSaved"),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      getGuildConfig(interaction.guildId),
+      t(currentLanguage, "configRankRoleClearSaved")
+    );
     return;
   }
 
@@ -389,6 +596,11 @@ async function execute(interaction) {
       content: t(currentLanguage, "configTrainingRoleAddSaved", { role }),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      getGuildConfig(interaction.guildId),
+      t(currentLanguage, "configTrainingRoleAddSaved", { role })
+    );
     return;
   }
 
@@ -410,6 +622,11 @@ async function execute(interaction) {
       content: t(currentLanguage, "configTrainingRoleRemoveSaved", { role }),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      getGuildConfig(interaction.guildId),
+      t(currentLanguage, "configTrainingRoleRemoveSaved", { role })
+    );
     return;
   }
 
@@ -435,6 +652,11 @@ async function execute(interaction) {
       content: t(currentLanguage, "configTrainingRoleClearSaved"),
       ephemeral: true
     });
+    await logConfigMutation(
+      interaction,
+      getGuildConfig(interaction.guildId),
+      t(currentLanguage, "configTrainingRoleClearSaved")
+    );
     return;
   }
 
@@ -469,6 +691,128 @@ async function execute(interaction) {
         failedCount: result?.failedCount || 0
       })
     });
+    await logConfigMutation(
+      interaction,
+      currentConfig,
+      t(currentLanguage, "configWipeForumCompleted", {
+        deletedCount: result?.deletedCount || 0,
+        failedCount: result?.failedCount || 0
+      })
+    );
+    return;
+  }
+
+  if (subcommand === "reset-user-data") {
+    const user = interaction.options.getUser("user", true);
+    const confirmation = interaction.options.getString("confirmation", true);
+
+    if (!matchesConfirmation(confirmation, STANDARD_RESET_CONFIRMATIONS)) {
+      await interaction.reply({
+        content: t(currentLanguage, "configResetUserConfirmationInvalid"),
+        ephemeral: true
+      });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    await interaction.editReply({
+      content: t(currentLanguage, "configResetUserStarted", { user })
+    });
+
+    const result = await resetUserServiceData(
+      interaction.guild,
+      interaction.guildId,
+      user.id
+    );
+
+    await interaction.editReply({
+      content: t(currentLanguage, "configResetUserCompleted", {
+        deletedProfileThreads: result.deletedProfileThreads,
+        deletedProfiles: result.deletedProfiles,
+        deletedSessions: result.deletedSessions,
+        user
+      })
+    });
+    await logConfigMutation(
+      interaction,
+      currentConfig,
+      t(currentLanguage, "configResetUserCompleted", {
+        deletedProfileThreads: result.deletedProfileThreads,
+        deletedProfiles: result.deletedProfiles,
+        deletedSessions: result.deletedSessions,
+        user
+      })
+    );
+    return;
+  }
+
+  if (subcommand === "reset-job-data") {
+    const confirmation = interaction.options.getString("confirmation", true);
+
+    if (!matchesConfirmation(confirmation, STANDARD_RESET_CONFIRMATIONS)) {
+      await interaction.reply({
+        content: t(currentLanguage, "configResetJobConfirmationInvalid"),
+        ephemeral: true
+      });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    await interaction.editReply({
+      content: t(currentLanguage, "configResetJobStarted")
+    });
+
+    const result = await resetGuildServiceData(
+      interaction.guild,
+      interaction.guildId
+    );
+
+    await interaction.editReply({
+      content: t(currentLanguage, "configResetJobCompleted", {
+        deletedProfileThreads: result.deletedProfileThreads,
+        deletedProfiles: result.deletedProfiles,
+        deletedSessions: result.deletedSessions
+      })
+    });
+    await logConfigMutation(
+      interaction,
+      currentConfig,
+      t(currentLanguage, "configResetJobCompleted", {
+        deletedProfileThreads: result.deletedProfileThreads,
+        deletedProfiles: result.deletedProfiles,
+        deletedSessions: result.deletedSessions
+      })
+    );
+    return;
+  }
+
+  if (subcommand === "reset-all-data") {
+    const confirmation = interaction.options.getString("confirmation", true);
+
+    if (!matchesConfirmation(confirmation, FULL_RESET_CONFIRMATIONS)) {
+      await interaction.reply({
+        content: t(currentLanguage, "configResetAllConfirmationInvalid"),
+        ephemeral: true
+      });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    await interaction.editReply({
+      content: t(currentLanguage, "configResetAllStarted")
+    });
+
+    const result = await resetAllServiceData(interaction.client);
+
+    await interaction.editReply({
+      content: t(currentLanguage, "configResetAllCompleted", {
+        deletedConfigs: result.deletedConfigs,
+        deletedProfileThreads: result.deletedProfileThreads,
+        deletedProfiles: result.deletedProfiles,
+        deletedSessions: result.deletedSessions
+      })
+    });
+    return;
   }
 }
 

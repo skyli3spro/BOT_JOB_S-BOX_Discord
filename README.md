@@ -9,12 +9,20 @@ French version: [README.fr.md](README.fr.md)
 - `/service start`
 - `/service stop`
 - `/service status`
+- `/service force-stop`
 - `/leaderboard`
+- `/report create`
+- `/report list`
+- `/report close`
 - `/help`
 - `/begin`
+- `/guide post`
 - `/config command-channel`
 - `/config forum-channel`
+- `/config report-channel`
+- `/config report-forum`
 - `/config training-forum`
+- `/config log-channel`
 - `/config job-name`
 - `/config language`
 - `/config rank-role-add`
@@ -26,6 +34,9 @@ French version: [README.fr.md](README.fr.md)
 - `/config training-role-list`
 - `/config training-role-clear`
 - `/config wipe-forum`
+- `/config reset-user-data`
+- `/config reset-job-data`
+- `/config reset-all-data`
 - `/config show`
 - `/training-guide publish`
 
@@ -164,6 +175,18 @@ Use:
 - lists the agents currently on duty
 - shows when each active session started
 
+### `/service force-stop`
+
+Force-stops another user's active service session.
+
+Example:
+`/service force-stop user:@Agent`
+
+Use:
+- administrator-only
+- useful when someone forgot to end their shift
+- updates the profile and total time correctly
+
 ### `/leaderboard`
 
 Shows the users with the highest service time.
@@ -174,6 +197,27 @@ Example:
 Use:
 - sorts users by total service time
 - helps track member activity
+
+### `/report create`
+
+Creates a lightweight RP report and opens a tracking post in the report forum.
+
+Example:
+`/report create title:Traffic stop subject:John Doe summary:Short summary here`
+
+### `/report list`
+
+Lists recent reports.
+
+Example:
+`/report list status:open`
+
+### `/report close`
+
+Closes a report by its ID and marks the forum tracking post as closed.
+
+Example:
+`/report close id:12`
 
 ### `/help`
 
@@ -197,6 +241,18 @@ Use:
 - explains how to configure the server step by step
 - helps set up channels, forums, language, rank roles, and training roles
 
+### `/guide post`
+
+Posts a built-in guide message in the selected channel.
+
+Example:
+`/guide post type:service channel:#service-help`
+
+Use:
+- posts a ready-to-use guide for `service`, `admin`, `training`, or `report`
+- automatically pins the message when the bot can pin messages
+- helps staff avoid re-explaining the same commands repeatedly
+
 ### `/config command-channel`
 
 Sets the text channel allowed for service commands.
@@ -211,12 +267,39 @@ Sets the Discord forum used for user profiles.
 Example:
 `/config forum-channel channel:#service-profiles`
 
+### `/config report-channel`
+
+Sets the allowed channel for report commands.
+
+Example:
+`/config report-channel channel:#police-reports`
+
+### `/config report-forum`
+
+Sets the forum used to track each report.
+
+Example:
+`/config report-forum channel:#police-report-tracking`
+
 ### `/config training-forum`
 
 Sets the Discord forum used for training guides.
 
 Example:
 `/config training-forum channel:#training-guides`
+
+### `/config log-channel`
+
+Sets the text channel used for staff logs.
+
+Example:
+`/config log-channel channel:#staff-logs`
+
+Use:
+- logs service starts and stops
+- logs guide publications
+- logs report activity
+- logs configuration changes
 
 ### `/config job-name`
 
@@ -309,6 +392,39 @@ Deletes every post in the configured forum and clears stored forum thread links.
 Example:
 `/config wipe-forum confirmation:CONFIRM`
 
+### `/config reset-user-data`
+
+Deletes all service data for one user on the current server.
+
+Example:
+`/config reset-user-data user:@Agent confirmation:CONFIRM`
+
+Notes:
+- deletes the user's sessions and profile data
+- tries to delete the user's forum profile thread too
+
+### `/config reset-job-data`
+
+Deletes all service data for the current server job while keeping the server configuration.
+
+Example:
+`/config reset-job-data confirmation:CONFIRM`
+
+Notes:
+- deletes every session and every profile for this server
+- keeps the configured channels, language, and role settings
+
+### `/config reset-all-data`
+
+Deletes the complete bot database.
+
+Example:
+`/config reset-all-data confirmation:RESET-ALL`
+
+Notes:
+- deletes all sessions, profiles, and server configurations
+- use this only when you really want a full reset everywhere
+
 ### `/config show`
 
 Shows the current server configuration.
@@ -327,6 +443,15 @@ Notes:
 - only configured training roles can use this command
 - a common setup is to add both `@Trainer` and `@Staff` with `/config training-role-add`
 - the file should be a `.md` guide
+
+### Suggested guide flow
+
+If you want players and staff to learn the bot without asking for help every time:
+
+- post a `service` guide in the main service channel with `/guide post`
+- post an `admin` guide in a staff or management channel
+- post a `training` guide in a staff/training information channel
+- post a `report` guide in a staff or police-information channel
 - if the file is long, the bot will split it into multiple messages inside the forum post
 
 ## Notes

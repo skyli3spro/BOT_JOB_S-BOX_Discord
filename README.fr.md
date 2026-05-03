@@ -9,12 +9,20 @@ English version: [README.md](README.md)
 - `/service start`
 - `/service stop`
 - `/service status`
+- `/service force-stop`
 - `/leaderboard`
+- `/report create`
+- `/report list`
+- `/report close`
 - `/help`
 - `/begin`
+- `/guide post`
 - `/config command-channel`
 - `/config forum-channel`
+- `/config report-channel`
+- `/config report-forum`
 - `/config training-forum`
+- `/config log-channel`
 - `/config job-name`
 - `/config language`
 - `/config rank-role-add`
@@ -26,6 +34,9 @@ English version: [README.md](README.md)
 - `/config training-role-list`
 - `/config training-role-clear`
 - `/config wipe-forum`
+- `/config reset-user-data`
+- `/config reset-job-data`
+- `/config reset-all-data`
 - `/config show`
 - `/training-guide publish`
 
@@ -139,12 +150,45 @@ Utilite :
 - liste les agents actuellement en service
 - affiche l'heure de debut de chaque session active
 
+### `/service force-stop`
+
+Force la fin de service d'une autre personne.
+
+Exemple :
+`/service force-stop user:@Agent`
+
+Utilite :
+- reserve aux administrateurs
+- utile si quelqu'un oublie de terminer son service
+- met a jour correctement la fiche et le temps total
+
 ### `/leaderboard`
 
 Affiche les utilisateurs avec le plus de temps de service.
 
 Exemple :
 `/leaderboard`
+
+### `/report create`
+
+Cree un mini rapport RP et ouvre son suivi dans le forum des rapports.
+
+Exemple :
+`/report create title:Controle routier subject:John Doe summary:Resume rapide ici`
+
+### `/report list`
+
+Affiche les rapports recents.
+
+Exemple :
+`/report list status:open`
+
+### `/report close`
+
+Ferme un rapport via son identifiant et marque son suivi forum comme cloture.
+
+Exemple :
+`/report close id:12`
 
 ### `/help`
 
@@ -168,6 +212,18 @@ Utilite :
 - guide la configuration etape par etape
 - aide a regler les salons, forums, langue, roles de rang et roles de formation
 
+### `/guide post`
+
+Publie un guide integre dans le salon choisi.
+
+Exemple :
+`/guide post type:service channel:#service-aide`
+
+Utilite :
+- publie un guide pret a l'emploi de type `service`, `admin`, `training` ou `report`
+- epingle automatiquement le message si le bot peut l'epingler
+- evite de devoir reexpliquer les memes commandes en boucle
+
 ### `/config command-channel`
 
 Definit le salon autorise pour les commandes de service.
@@ -182,12 +238,39 @@ Definit le forum Discord utilise pour les profils utilisateurs.
 Exemple :
 `/config forum-channel channel:#service-profils`
 
+### `/config report-channel`
+
+Definit le salon autorise pour les commandes de rapport.
+
+Exemple :
+`/config report-channel channel:#rapports-police`
+
+### `/config report-forum`
+
+Definit le forum utilise pour suivre chaque rapport.
+
+Exemple :
+`/config report-forum channel:#suivi-rapports-police`
+
 ### `/config training-forum`
 
 Definit le forum Discord utilise pour les guides de formation.
 
 Exemple :
 `/config training-forum channel:#guides-formation`
+
+### `/config log-channel`
+
+Definit le salon texte utilise pour les logs staff.
+
+Exemple :
+`/config log-channel channel:#staff-logs`
+
+Utilite :
+- journalise les prises et fins de service
+- journalise la publication des guides
+- journalise l'activite des rapports
+- journalise les changements de configuration
 
 ### `/config job-name`
 
@@ -280,6 +363,39 @@ Supprime tous les posts du forum configure et nettoie les liens de threads enreg
 Exemple :
 `/config wipe-forum confirmation:CONFIRM`
 
+### `/config reset-user-data`
+
+Supprime toutes les donnees de service d'une personne sur le serveur actuel.
+
+Exemple :
+`/config reset-user-data user:@Agent confirmation:CONFIRM`
+
+Notes :
+- supprime les sessions et les donnees de profil de la personne
+- essaie aussi de supprimer sa fiche forum
+
+### `/config reset-job-data`
+
+Supprime toutes les donnees de service du job du serveur actuel tout en gardant la configuration.
+
+Exemple :
+`/config reset-job-data confirmation:CONFIRM`
+
+Notes :
+- supprime toutes les sessions et tous les profils de ce serveur
+- garde les salons, la langue et les roles configures
+
+### `/config reset-all-data`
+
+Supprime la base complete du bot.
+
+Exemple :
+`/config reset-all-data confirmation:RESET-ALL`
+
+Notes :
+- supprime toutes les sessions, tous les profils et toutes les configurations serveur
+- a utiliser seulement si tu veux vraiment tout reinitialiser partout
+
 ### `/config show`
 
 Affiche la configuration actuelle du serveur.
@@ -298,6 +414,15 @@ Notes :
 - seuls les roles de formation configures peuvent utiliser cette commande
 - le plus simple est d'ajouter `@Formateur` et `@Staff` avec `/config training-role-add`
 - le fichier doit etre un guide `.md`
+
+### Flux de guides recommande
+
+Si tu veux que les joueurs et le staff apprennent le bot sans tout redemander :
+
+- publie un guide `service` dans le salon principal de service avec `/guide post`
+- publie un guide `admin` dans un salon staff ou gestion
+- publie un guide `training` dans un salon d'information staff ou formation
+- publie un guide `report` dans un salon staff ou informations police
 - si le fichier est long, le bot le coupe en plusieurs messages dans le post du forum
 
 ## Notes

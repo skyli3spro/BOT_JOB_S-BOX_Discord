@@ -1,18 +1,23 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { PermissionFlagsBits, SlashCommandBuilder } = require("discord.js");
 const {
   assertCommandChannel,
   getActiveSessions,
   ensureUserProfile,
   getGuildConfig,
+  logStaffEvent,
   startService,
   stopService,
-  updateProfileThread
+  updateProfileThread,
+  updateProfileThreadForUser
 } = require("../services/service-tracker");
 const {
   formatDiscordTimestamp,
   formatDuration
 } = require("../utils/formatters");
-const { getLiveServerDisplayName } = require("../utils/members");
+const {
+  getLiveServerDisplayName,
+  getServerDisplayNameByUserId
+} = require("../utils/members");
 const { getGuildLanguage, t } = require("../utils/i18n");
 const { replyWithAutoDelete } = require("../utils/interaction-responses");
 
@@ -29,6 +34,17 @@ const data = new SlashCommandBuilder()
     subcommand
       .setName("status")
       .setDescription("Show the agents currently on duty.")
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("force-stop")
+      .setDescription("Force-stop another user's active service session.")
+      .addUserOption((option) =>
+        option
+          .setName("user")
+          .setDescription("User whose active service session should be stopped")
+          .setRequired(true)
+      )
   );
 
 async function execute(interaction) {
@@ -61,6 +77,14 @@ async function execute(interaction) {
         startedAt: formatDiscordTimestamp(new Date(result.session.started_at))
       })
     );
+    await logStaffEvent(interaction.guild, config, {
+      title: t(language, "staffLogServiceTitle"),
+      description: t(language, "serviceStarted", {
+        displayName,
+        startedAt: formatDiscordTimestamp(new Date(result.session.started_at))
+      }),
+      color: 0x2b9348
+    });
     return;
   }
 
@@ -84,6 +108,62 @@ async function execute(interaction) {
         duration: formatDuration(result.completedSession.duration || 0)
       })
     );
+    await logStaffEvent(interaction.guild, config, {
+      title: t(language, "staffLogServiceTitle"),
+      description: t(language, "serviceStopped", {
+        displayName,
+        endedAt: formatDiscordTimestamp(new Date(result.completedSession.ended_at)),
+        duration: formatDuration(result.completedSession.duration || 0)
+      }),
+      color: 0xd35454
+    });
+    return;
+  }
+
+  if (subcommand === "force-stop") {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({
+        content: t(language, "serviceForceStopDenied"),
+        ephemeral: true
+      });
+      return;
+    }
+
+    const targetUser = interaction.options.getUser("user", true);
+    const result = stopService(interaction.guildId, targetUser.id);
+
+    if (!result.activeSession || !result.completedSession) {
+      await interaction.reply({
+        content: t(language, "serviceForceStopNoActive", { user: targetUser }),
+        ephemeral: true
+      });
+      return;
+    }
+
+    const targetDisplayName = await getServerDisplayNameByUserId(
+      interaction.guild,
+      targetUser.id
+    );
+    await updateProfileThreadForUser(
+      interaction.guild,
+      interaction.guildId,
+      targetUser.id,
+      t(language, "statusOffDuty")
+    );
+
+    const message = t(language, "serviceForceStopped", {
+      actor: interaction.user,
+      displayName: targetDisplayName,
+      endedAt: formatDiscordTimestamp(new Date(result.completedSession.ended_at)),
+      duration: formatDuration(result.completedSession.duration || 0)
+    });
+
+    await replyWithAutoDelete(interaction, message);
+    await logStaffEvent(interaction.guild, config, {
+      title: t(language, "staffLogServiceTitle"),
+      description: message,
+      color: 0xe67e22
+    });
     return;
   }
 
