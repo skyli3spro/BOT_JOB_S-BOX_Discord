@@ -1,4 +1,7 @@
 const {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ChannelType,
   EmbedBuilder,
   PermissionFlagsBits,
@@ -8,13 +11,15 @@ const {
   getGuildConfig,
   logStaffEvent
 } = require("../services/service-tracker");
+const { buildReportPanelComponents } = require("./report");
 const { getGuildLanguage, t } = require("../utils/i18n");
 
 const GUIDE_TYPES = {
   service: 0x2b9348,
   admin: 0x2f6ed3,
   training: 0xc27c0e,
-  report: 0x5865f2
+  report: 0x5865f2,
+  "role-request": 0xe08a1e
 };
 
 function getChannelLabel(channelId, fallback) {
@@ -33,28 +38,10 @@ function buildServiceGuideEmbed(language, config) {
     .setDescription(t(language, "guideServiceDescription", {
       channel: commandChannelLabel
     }))
-    .addFields(
-      {
-        name: "/service start",
-        value: t(language, "guideServiceStartValue")
-      },
-      {
-        name: "/service stop",
-        value: t(language, "guideServiceStopValue")
-      },
-      {
-        name: "/service status",
-        value: t(language, "guideServiceStatusValue")
-      },
-      {
-        name: "/leaderboard",
-        value: t(language, "guideServiceLeaderboardValue")
-      },
-      {
-        name: t(language, "guideServiceNotesField"),
-        value: t(language, "guideServiceNotesValue")
-      }
-    )
+    .addFields({
+      name: t(language, "guideServiceNotesField"),
+      value: t(language, "guideServiceNotesValue")
+    })
     .setFooter({ text: t(language, "guideServiceFooter") });
 }
 
@@ -169,28 +156,40 @@ function buildReportGuideEmbed(language) {
     .setColor(GUIDE_TYPES.report)
     .setTitle(t(language, "guideReportTitle"))
     .setDescription(t(language, "guideReportDescription"))
-    .addFields(
-      {
-        name: "/report create",
-        value: t(language, "guideReportCreateValue")
-      },
-      {
-        name: "/report list",
-        value: t(language, "guideReportListValue")
-      },
-      {
-        name: "/report close",
-        value: t(language, "guideReportCloseValue")
-      },
-      {
-        name: t(language, "guideReportNotesField"),
-        value: t(language, "guideReportNotesValue")
-      }
-    )
+    .addFields({
+      name: t(language, "guideReportNotesField"),
+      value: t(language, "guideReportNotesValue")
+    })
     .setFooter({ text: t(language, "guideReportFooter") });
 }
 
-function buildGuideEmbed(type, language, config) {
+function buildRoleRequestGuideEmbed(language, role) {
+  const roleLabel = role ? `${role}` : "@ASPD";
+
+  return new EmbedBuilder()
+    .setColor(GUIDE_TYPES["role-request"])
+    .setTitle(t(language, "guideRoleRequestTitle"))
+    .setDescription(t(language, "guideRoleRequestDescription", {
+      role: roleLabel
+    }))
+    .addFields({
+      name: t(language, "guideRoleRequestFieldTitle"),
+      value: t(language, "guideRoleRequestFieldValue", {
+        role: roleLabel
+      })
+    })
+    .setFooter({ text: t(language, "guideRoleRequestFooter") });
+}
+
+function getGuideTypeKey(type) {
+  if (type === "role-request") {
+    return "guideTypeRoleRequest";
+  }
+
+  return `guideType${type[0].toUpperCase()}${type.slice(1)}`;
+}
+
+function buildGuideEmbed(type, language, config, options = {}) {
   if (type === "service") {
     return buildServiceGuideEmbed(language, config);
   }
@@ -203,7 +202,42 @@ function buildGuideEmbed(type, language, config) {
     return buildReportGuideEmbed(language);
   }
 
+  if (type === "role-request") {
+    return buildRoleRequestGuideEmbed(language, options.role);
+  }
+
   return buildTrainingGuideEmbed(language, config);
+}
+
+function buildGuideComponents(type, language) {
+  if (type === "report") {
+    return buildReportPanelComponents(language);
+  }
+
+  if (type === "service") {
+    return [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("service-panel:start")
+          .setLabel(t(language, "commandGuideStartButton"))
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId("service-panel:stop")
+          .setLabel(t(language, "commandGuideStopButton"))
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId("service-panel:status")
+          .setLabel(t(language, "commandGuideStatusButton"))
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId("service-panel:leaderboard")
+          .setLabel(t(language, "commandGuideLeaderboardButton"))
+          .setStyle(ButtonStyle.Secondary)
+      )
+    ];
+  }
+
+  return [];
 }
 
 const data = new SlashCommandBuilder()
@@ -223,7 +257,8 @@ const data = new SlashCommandBuilder()
             { name: "Service", value: "service" },
             { name: "Admin", value: "admin" },
             { name: "Training", value: "training" },
-            { name: "Report", value: "report" }
+            { name: "Report", value: "report" },
+            { name: "Role request", value: "role-request" }
           )
       )
       .addChannelOption((option) =>
@@ -233,6 +268,12 @@ const data = new SlashCommandBuilder()
           .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
           .setRequired(true)
       )
+      .addRoleOption((option) =>
+        option
+          .setName("role")
+          .setDescription("Role to mention in the guide when needed")
+          .setRequired(false)
+      )
   );
 
 async function execute(interaction) {
@@ -240,15 +281,19 @@ async function execute(interaction) {
   const language = getGuildLanguage(config);
   const type = interaction.options.getString("type", true);
   const channel = interaction.options.getChannel("channel", true);
+  const role = interaction.options.getRole("role");
 
   try {
-    const embed = buildGuideEmbed(type, language, config);
-    const message = await channel.send({ embeds: [embed] });
+    const embed = buildGuideEmbed(type, language, config, { role });
+    const message = await channel.send({
+      embeds: [embed],
+      components: buildGuideComponents(type, language)
+    });
     await message.pin().catch(() => null);
 
     await interaction.reply({
       content: t(language, "guidePostSuccess", {
-        type: t(language, `guideType${type[0].toUpperCase()}${type.slice(1)}`),
+        type: t(language, getGuideTypeKey(type)),
         channel
       }),
       ephemeral: true
@@ -257,7 +302,7 @@ async function execute(interaction) {
       title: t(language, "staffLogGuideTitle"),
       description: t(language, "guidePostLog", {
         author: interaction.user,
-        type: t(language, `guideType${type[0].toUpperCase()}${type.slice(1)}`),
+        type: t(language, getGuideTypeKey(type)),
         channel
       }),
       color: 0x2f6ed3

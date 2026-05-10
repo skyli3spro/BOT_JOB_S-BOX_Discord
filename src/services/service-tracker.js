@@ -1,10 +1,20 @@
-const { ChannelType, EmbedBuilder } = require("discord.js");
+const {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
+  EmbedBuilder,
+  PermissionFlagsBits
+} = require("discord.js");
 const { getDb } = require("../db");
 const { getGuildLanguage, t } = require("../utils/i18n");
 const {
+  getDefaultMemberDisplayName,
   getGuildMemberById,
   getMemberRankName,
-  getServerDisplayNameByUserId
+  normalizeWhitespace,
+  getServerDisplayNameByUserId,
+  stripKnownRankPrefixes
 } = require("../utils/members");
 const {
   formatDiscordTimestamp,
@@ -46,6 +56,36 @@ function getConfiguredTrainingRoleIds(config) {
   return parseRankRoleIds(config?.training_role_ids);
 }
 
+function isAutoRankNicknameEnabled(config) {
+  return Number(config?.auto_rank_nickname_enabled) === 1;
+}
+
+function hasAnyAutoRankNicknameSyncEnabled() {
+  const row = getDb()
+    .prepare(
+      `
+      SELECT 1
+      FROM guild_config
+      WHERE auto_rank_nickname_enabled = 1
+      LIMIT 1
+      `
+    )
+    .get();
+
+  return Boolean(row);
+}
+
+function getConfiguredRankRoleNames(guild, config) {
+  const configuredRankRoleIds = getConfiguredRankRoleIds(config);
+  if (configuredRankRoleIds.length === 0) {
+    return [];
+  }
+
+  return configuredRankRoleIds
+    .map((roleId) => guild.roles.cache.get(roleId)?.name)
+    .filter(Boolean);
+}
+
 function upsertGuildConfig(guildId, updates) {
   const current = getGuildConfig(guildId) || {
     guild_id: guildId,
@@ -59,6 +99,7 @@ function upsertGuildConfig(guildId, updates) {
     job_name: null,
     language: "en",
     rank_role_ids: "[]",
+    auto_rank_nickname_enabled: 0,
     training_role_ids: "[]"
   };
 
@@ -73,6 +114,11 @@ function upsertGuildConfig(guildId, updates) {
       ? next.rank_role_ids
       : parseRankRoleIds(next.rank_role_ids)
   );
+  next.auto_rank_nickname_enabled = Number(
+    next.auto_rank_nickname_enabled
+  ) === 1
+    ? 1
+    : 0;
   next.training_role_ids = serializeRankRoleIds(
     Array.isArray(next.training_role_ids)
       ? next.training_role_ids
@@ -94,6 +140,7 @@ function upsertGuildConfig(guildId, updates) {
         job_name,
         language,
         rank_role_ids,
+        auto_rank_nickname_enabled,
         training_role_ids
       )
       VALUES (
@@ -108,6 +155,7 @@ function upsertGuildConfig(guildId, updates) {
         @job_name,
         @language,
         @rank_role_ids,
+        @auto_rank_nickname_enabled,
         @training_role_ids
       )
       ON CONFLICT(guild_id) DO UPDATE SET
@@ -121,6 +169,7 @@ function upsertGuildConfig(guildId, updates) {
         job_name = excluded.job_name,
         language = excluded.language,
         rank_role_ids = excluded.rank_role_ids,
+        auto_rank_nickname_enabled = excluded.auto_rank_nickname_enabled,
         training_role_ids = excluded.training_role_ids
       `
     )
@@ -292,6 +341,122 @@ function getProfileThreadName(displayName, jobName) {
   return `${displayName} - ${jobName || "Service"}`.slice(0, 100);
 }
 
+function shouldAutoSyncRankNickname(config, options = {}) {
+  if (options.force) {
+    return true;
+  }
+
+  return isAutoRankNicknameEnabled(config)
+    && getConfiguredRankRoleIds(config).length > 0;
+}
+
+function getDesiredRankNickname(member, config, options = {}) {
+  if (!member?.guild || !member.user) {
+    return null;
+  }
+
+  const activeRoleIds = Array.isArray(options.activeRoleIds)
+    ? options.activeRoleIds.filter(Boolean)
+    : getConfiguredRankRoleIds(config);
+  const configuredRoleNames = Array.isArray(options.stripRoleNames)
+    ? options.stripRoleNames.filter(Boolean)
+    : getConfiguredRankRoleNames(member.guild, config);
+
+  if (activeRoleIds.length === 0 && configuredRoleNames.length === 0) {
+    return null;
+  }
+
+  const currentRankName = getMemberRankName(
+    member,
+    activeRoleIds
+  );
+  const defaultName = normalizeWhitespace(getDefaultMemberDisplayName(member));
+  const currentDisplayName = member.nickname || getDefaultMemberDisplayName(member);
+  const baseName = stripKnownRankPrefixes(currentDisplayName, configuredRoleNames);
+  const normalizedBaseName = normalizeWhitespace(baseName) || defaultName;
+
+  if (!currentRankName) {
+    return normalizedBaseName === defaultName ? null : normalizedBaseName;
+  }
+
+  const maxBaseLength = Math.max(1, 32 - currentRankName.length - 1);
+  const truncatedBaseName = normalizedBaseName.slice(0, maxBaseLength).trim() || defaultName;
+  return normalizeWhitespace(`${currentRankName} ${truncatedBaseName}`).slice(0, 32);
+}
+
+async function syncMemberRankNickname(member, config, options = {}) {
+  const activeRoleIds = Array.isArray(options.activeRoleIds)
+    ? options.activeRoleIds.filter(Boolean)
+    : getConfiguredRankRoleIds(config);
+  const stripRoleNames = Array.isArray(options.stripRoleNames)
+    ? options.stripRoleNames.filter(Boolean)
+    : getConfiguredRankRoleNames(member?.guild, config);
+
+  if (
+    !member?.guild
+    || !member.manageable
+    || !shouldAutoSyncRankNickname(config, options)
+    || (activeRoleIds.length === 0 && stripRoleNames.length === 0)
+  ) {
+    return false;
+  }
+
+  const botMember = member.guild.members.me
+    || await member.guild.members.fetchMe().catch(() => null);
+  if (!botMember?.permissions?.has(PermissionFlagsBits.ManageNicknames)) {
+    return false;
+  }
+
+  if (member.user?.bot || member.id === member.guild.ownerId) {
+    return false;
+  }
+
+  const desiredNickname = getDesiredRankNickname(member, config, {
+    activeRoleIds,
+    stripRoleNames
+  });
+  const currentNickname = member.nickname || null;
+
+  if ((desiredNickname || null) === currentNickname) {
+    return false;
+  }
+
+  await member.setNickname(desiredNickname, "Automatic rank nickname sync").catch(() => null);
+  return true;
+}
+
+async function syncGuildRankNicknames(guild, config, options = {}) {
+  const activeRoleIds = Array.isArray(options.activeRoleIds)
+    ? options.activeRoleIds.filter(Boolean)
+    : getConfiguredRankRoleIds(config);
+  const stripRoleNames = Array.isArray(options.stripRoleNames)
+    ? options.stripRoleNames.filter(Boolean)
+    : getConfiguredRankRoleNames(guild, config);
+
+  if (
+    !guild
+    || !shouldAutoSyncRankNickname(config, options)
+    || (activeRoleIds.length === 0 && stripRoleNames.length === 0)
+  ) {
+    return { updatedCount: 0 };
+  }
+
+  const members = await guild.members.fetch().catch(() => null);
+  if (!members) {
+    return { updatedCount: 0 };
+  }
+
+  let updatedCount = 0;
+  for (const member of members.values()) {
+    updatedCount += Number(await syncMemberRankNickname(member, config, {
+      activeRoleIds,
+      stripRoleNames
+    }));
+  }
+
+  return { updatedCount };
+}
+
 async function getConfiguredCommandChannel(guild, config) {
   if (!config?.command_channel_id) {
     return null;
@@ -371,40 +536,39 @@ function buildCommandGuidePayload(config) {
     .setColor(0x2b6cff)
     .setTitle(t(language, "commandGuideTitle"))
     .setDescription(t(language, "commandGuideDescription"))
-    .addFields(
-      {
-        name: t(language, "commandGuideJobField"),
-        value: config.job_name || t(language, "configNotSet"),
-        inline: false
-      },
-      {
-        name: t(language, "commandGuideStartField"),
-        value: t(language, "commandGuideStartValue"),
-        inline: true
-      },
-      {
-        name: t(language, "commandGuideStopField"),
-        value: t(language, "commandGuideStopValue"),
-        inline: true
-      },
-      {
-        name: t(language, "commandGuideStatusField"),
-        value: t(language, "commandGuideStatusValue"),
-        inline: true
-      },
-      {
-        name: t(language, "commandGuideLeaderboardField"),
-        value: t(language, "commandGuideLeaderboardValue"),
-        inline: false
-      }
-    )
+    .addFields({
+      name: t(language, "commandGuideJobField"),
+      value: config.job_name || t(language, "configNotSet"),
+      inline: false
+    })
     .setFooter({
       text: t(language, "commandGuideFooter")
     });
+  const components = [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("service-panel:start")
+        .setLabel(t(language, "commandGuideStartButton"))
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("service-panel:stop")
+        .setLabel(t(language, "commandGuideStopButton"))
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("service-panel:status")
+        .setLabel(t(language, "commandGuideStatusButton"))
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("service-panel:leaderboard")
+        .setLabel(t(language, "commandGuideLeaderboardButton"))
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
 
   return {
     content: null,
-    embeds: [embed]
+    embeds: [embed],
+    components
   };
 }
 
@@ -1172,6 +1336,7 @@ module.exports = {
   getGuildConfig,
   getConfiguredRankRoleIds,
   getConfiguredTrainingRoleIds,
+  hasAnyAutoRankNicknameSyncEnabled,
   getActiveSessions,
   getLeaderboard,
   getOpenSession,
@@ -1188,6 +1353,8 @@ module.exports = {
   resetGuildServiceData,
   resetUserServiceData,
   getReportEntryById,
+  syncGuildRankNicknames,
+  syncMemberRankNickname,
   syncReportThread,
   updateReportEntry,
   listReportEntries,

@@ -47,13 +47,11 @@ const data = new SlashCommandBuilder()
       )
   );
 
-async function execute(interaction) {
+async function executeServiceAction(interaction, subcommand) {
   const config = getGuildConfig(interaction.guildId);
   assertCommandChannel(interaction, config);
   const language = getGuildLanguage(config);
   const displayName = await getLiveServerDisplayName(interaction);
-
-  const subcommand = interaction.options.getSubcommand();
 
   if (subcommand === "start") {
     ensureUserProfile(interaction.guildId, interaction.user.id);
@@ -200,4 +198,13 @@ async function execute(interaction) {
   });
 }
 
-module.exports = { data, execute };
+async function execute(interaction) {
+  const subcommand = interaction.options.getSubcommand();
+  await executeServiceAction(interaction, subcommand);
+}
+
+async function handlePanelButton(interaction, action) {
+  await executeServiceAction(interaction, action);
+}
+
+module.exports = { data, execute, handlePanelButton };

@@ -11,6 +11,7 @@ const {
   resetAllServiceData,
   resetGuildServiceData,
   resetUserServiceData,
+  syncGuildRankNicknames,
   syncCommandGuideMessage,
   upsertGuildConfig,
   wipeConfiguredForum
@@ -177,6 +178,21 @@ const data = new SlashCommandBuilder()
   )
   .addSubcommand((subcommand) =>
     subcommand
+      .setName("rank-nickname-sync")
+      .setDescription("Enable or disable automatic rank nickname sync.")
+      .addStringOption((option) =>
+        option
+          .setName("value")
+          .setDescription("Whether automatic rank nicknames are enabled")
+          .setRequired(true)
+          .addChoices(
+            { name: "Enabled", value: "enabled" },
+            { name: "Disabled", value: "disabled" }
+          )
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
       .setName("training-role-add")
       .setDescription("Add a role to the list allowed to publish guides.")
       .addRoleOption((option) =>
@@ -323,6 +339,11 @@ async function execute(interaction) {
           configuredRankRoleIds.length > 0
             ? configuredRankRoleIds.map((roleId) => `<@&${roleId}>`).join(", ")
             : t(currentLanguage, "configAllRolesAllowed")
+        }`,
+        `${t(currentLanguage, "configLabelRankNicknameSync")}: ${
+          Number(config.auto_rank_nickname_enabled) === 1
+            ? t(currentLanguage, "configToggleEnabled")
+            : t(currentLanguage, "configToggleDisabled")
         }`,
         `${t(currentLanguage, "configLabelTrainingRoles")}: ${
           configuredTrainingRoleIds.length > 0
@@ -506,13 +527,17 @@ async function execute(interaction) {
       return;
     }
 
+    await interaction.deferReply({ ephemeral: true });
     upsertGuildConfig(interaction.guildId, {
       rank_role_ids: [...configuredRankRoleIds, role.id],
       language: currentLanguage
     });
-    await interaction.reply({
+    await syncGuildRankNicknames(
+      interaction.guild,
+      getGuildConfig(interaction.guildId)
+    );
+    await interaction.editReply({
       content: t(currentLanguage, "configRankRoleAddSaved", { role }),
-      ephemeral: true
     });
     await logConfigMutation(
       interaction,
@@ -532,13 +557,29 @@ async function execute(interaction) {
       return;
     }
 
+    await interaction.deferReply({ ephemeral: true });
+    const nextRankRoleIds = configuredRankRoleIds.filter((roleId) => roleId !== role.id);
     upsertGuildConfig(interaction.guildId, {
-      rank_role_ids: configuredRankRoleIds.filter((roleId) => roleId !== role.id),
+      rank_role_ids: nextRankRoleIds,
       language: currentLanguage
     });
-    await interaction.reply({
+    await syncGuildRankNicknames(
+      interaction.guild,
+      getGuildConfig(interaction.guildId),
+      {
+        activeRoleIds: nextRankRoleIds,
+        force: true,
+        stripRoleNames: [
+          ...new Set(
+            configuredRankRoleIds
+              .map((roleId) => interaction.guild.roles.cache.get(roleId)?.name)
+              .filter(Boolean)
+          )
+        ]
+      }
+    );
+    await interaction.editReply({
       content: t(currentLanguage, "configRankRoleRemoveSaved", { role }),
-      ephemeral: true
     });
     await logConfigMutation(
       interaction,
@@ -562,19 +603,65 @@ async function execute(interaction) {
   }
 
   if (subcommand === "rank-role-clear") {
+    await interaction.deferReply({ ephemeral: true });
+    const previousStripRoleNames = configuredRankRoleIds
+      .map((roleId) => interaction.guild.roles.cache.get(roleId)?.name)
+      .filter(Boolean);
     upsertGuildConfig(interaction.guildId, {
       rank_role_ids: [],
       language: currentLanguage
     });
-    await interaction.reply({
+    await syncGuildRankNicknames(
+      interaction.guild,
+      getGuildConfig(interaction.guildId),
+      {
+        activeRoleIds: [],
+        force: true,
+        stripRoleNames: previousStripRoleNames
+      }
+    );
+    await interaction.editReply({
       content: t(currentLanguage, "configRankRoleClearSaved"),
-      ephemeral: true
     });
     await logConfigMutation(
       interaction,
       getGuildConfig(interaction.guildId),
       t(currentLanguage, "configRankRoleClearSaved")
     );
+    return;
+  }
+
+  if (subcommand === "rank-nickname-sync") {
+    const value = interaction.options.getString("value", true);
+    const isEnabled = value === "enabled";
+    await interaction.deferReply({ ephemeral: true });
+    const nextConfig = upsertGuildConfig(interaction.guildId, {
+      auto_rank_nickname_enabled: isEnabled ? 1 : 0,
+      language: currentLanguage
+    });
+
+    if (isEnabled) {
+      await syncGuildRankNicknames(interaction.guild, nextConfig);
+    } else {
+      const stripRoleNames = configuredRankRoleIds
+        .map((roleId) => interaction.guild.roles.cache.get(roleId)?.name)
+        .filter(Boolean);
+      await syncGuildRankNicknames(interaction.guild, nextConfig, {
+        activeRoleIds: [],
+        force: true,
+        stripRoleNames
+      });
+    }
+
+    const message = t(currentLanguage, "configRankNicknameSyncSaved", {
+      statusLabel: isEnabled
+        ? t(currentLanguage, "configToggleEnabled")
+        : t(currentLanguage, "configToggleDisabled")
+    });
+    await interaction.editReply({
+      content: message,
+    });
+    await logConfigMutation(interaction, nextConfig, message);
     return;
   }
 

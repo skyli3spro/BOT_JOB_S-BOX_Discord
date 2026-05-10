@@ -12,7 +12,7 @@ const data = new SlashCommandBuilder()
   .setName("leaderboard")
   .setDescription("Show the top service times for this server.");
 
-async function execute(interaction) {
+async function executeLeaderboard(interaction) {
   const config = getGuildConfig(interaction.guildId);
   assertCommandChannel(interaction, config);
   const language = getGuildLanguage(config);
@@ -42,4 +42,12 @@ async function execute(interaction) {
   });
 }
 
-module.exports = { data, execute };
+async function execute(interaction) {
+  await executeLeaderboard(interaction);
+}
+
+async function handlePanelButton(interaction) {
+  await executeLeaderboard(interaction);
+}
+
+module.exports = { data, execute, handlePanelButton };

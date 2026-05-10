@@ -26,6 +26,36 @@ function getServerDisplayName(memberOrInteraction) {
   return "Unknown user";
 }
 
+function getDefaultMemberDisplayName(member) {
+  if (!member?.user) {
+    return getServerDisplayName(member);
+  }
+
+  return member.user.globalName
+    || member.user.displayName
+    || member.user.username
+    || "Unknown user";
+}
+
+function normalizeWhitespace(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function stripKnownRankPrefixes(displayName, roleNames = []) {
+  const normalizedName = normalizeWhitespace(displayName);
+  const sortedRoleNames = [...new Set((roleNames || []).map(normalizeWhitespace).filter(Boolean))]
+    .sort((leftName, rightName) => rightName.length - leftName.length);
+
+  for (const roleName of sortedRoleNames) {
+    const prefix = `${roleName} `;
+    if (normalizedName.toLowerCase().startsWith(prefix.toLowerCase())) {
+      return normalizeWhitespace(normalizedName.slice(prefix.length));
+    }
+  }
+
+  return normalizedName;
+}
+
 function getMemberRankName(member, allowedRoleIds = []) {
   if (!member?.roles?.cache) {
     return null;
@@ -86,9 +116,12 @@ async function getServerDisplayNameByUserId(guild, userId) {
 
 module.exports = {
   getGuildMemberById,
+  getDefaultMemberDisplayName,
   getLiveGuildMember,
   getMemberRankName,
   getLiveServerDisplayName,
   getServerDisplayNameByUserId,
-  getServerDisplayName
+  getServerDisplayName,
+  normalizeWhitespace,
+  stripKnownRankPrefixes
 };

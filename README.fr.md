@@ -29,6 +29,7 @@ English version: [README.md](README.md)
 - `/config rank-role-remove`
 - `/config rank-role-list`
 - `/config rank-role-clear`
+- `/config rank-nickname-sync`
 - `/config training-role-add`
 - `/config training-role-remove`
 - `/config training-role-list`
@@ -59,6 +60,9 @@ Important :
 - `TEST_GUILD_IDS` est optionnel
 - tu en as besoin uniquement si tu veux des mises a jour rapides des commandes sur un ou plusieurs serveurs de test
 - si tu le laisses vide, le bot peut quand meme fonctionner sur tous les serveurs ou il est invite
+- active le `Server Members Intent` dans le Discord Developer Portal si tu veux les pseudos automatiques avec rang
+- donne au bot la permission `Manage Nicknames`
+- place le role du bot au-dessus des membres qu'il doit renommer
 
 ## Configuration du `.env`
 
@@ -220,9 +224,12 @@ Exemple :
 `/guide post type:service channel:#service-aide`
 
 Utilite :
-- publie un guide pret a l'emploi de type `service`, `admin`, `training` ou `report`
+- publie un guide pret a l'emploi de type `service`, `admin`, `training`, `report` ou `role-request`
 - epingle automatiquement le message si le bot peut l'epingler
 - evite de devoir reexpliquer les memes commandes en boucle
+
+Exemple pour un modele de demande de role :
+`/guide post type:role-request channel:#demande-role role:@ASPD`
 
 ### `/config command-channel`
 
@@ -230,6 +237,10 @@ Definit le salon autorise pour les commandes de service.
 
 Exemple :
 `/config command-channel channel:#service`
+
+Notes :
+- met a jour le panneau epingle de service dans ce salon
+- le panneau contient des boutons pour `Start`, `Stop`, `Status` et `Leaderboard`
 
 ### `/config forum-channel`
 
@@ -327,6 +338,23 @@ Vide la liste des roles de rang configures.
 
 Exemple :
 `/config rank-role-clear`
+
+Notes :
+- utilise cette liste uniquement pour les grades du job
+- n'ajoute pas les roles staff ou moderation ici
+- si tu veux le prefixe automatique dans le pseudo, configure d'abord ces roles puis active `/config rank-nickname-sync`
+
+### `/config rank-nickname-sync`
+
+Active ou desactive la synchronisation automatique du pseudo avec le rang du job configure.
+
+Exemple :
+`/config rank-nickname-sync value:enabled`
+
+Notes :
+- le bot utilise uniquement les roles ajoutes avec `/config rank-role-add`
+- quand c'est active, le bot met le plus haut rang configure devant le pseudo serveur
+- quand c'est desactive, le bot retire les prefixes de rang qu'il avait ajoutes
 
 ### `/config training-role-add`
 

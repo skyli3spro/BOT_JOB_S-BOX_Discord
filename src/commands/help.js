@@ -35,6 +35,7 @@ async function execute(interaction) {
       `- \`/config language\` - ${t(language, "helpConfigLanguage")}`,
       `- \`/config show\` - ${t(language, "helpConfigShow")}`,
       `- \`/config rank-role-add\` - ${t(language, "helpConfigRankRoles")}`,
+      `- \`/config rank-nickname-sync\` - ${t(language, "helpConfigRankNicknameSync")}`,
       `- \`/config training-forum\` - ${t(language, "helpConfigTrainingForum")}`,
       `- \`/config training-role-add\` - ${t(language, "helpConfigTrainingRoles")}`,
       `- \`/guide post\` - ${t(language, "helpGuidePost")}`,

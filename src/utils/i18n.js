@@ -30,9 +30,12 @@ const translations = {
     configLabelJobName: "Nom du metier",
     configLabelLanguage: "Langue",
     configLabelRankRoles: "Roles de rang",
+    configLabelRankNicknameSync: "Sync pseudo avec rang",
     configLabelTrainingRoles: "Roles formation",
     configNotSet: "Non defini",
     configAllRolesAllowed: "Tous les roles du serveur",
+    configToggleEnabled: "Active",
+    configToggleDisabled: "Desactive",
     configTrainingRolesDefault: "Aucun role configure",
     configCommandChannelSaved: ({ channel }) =>
       `Le salon de commande a ete defini sur ${channel}.`,
@@ -72,6 +75,12 @@ const translations = {
     configRankRoleClearDescription:
       "Vide la liste des roles de rang configures.",
     configRankRoleOptionDescription: "Role a prendre en compte pour les rangs",
+    configRankNicknameSyncDescription:
+      "Active ou desactive la synchronisation automatique du pseudo avec le rang.",
+    configRankNicknameSyncOptionDescription:
+      "Definit si le pseudo du serveur est synchronise automatiquement avec le rang",
+    configRankNicknameSyncSaved: ({ statusLabel }) =>
+      `La synchronisation automatique du pseudo avec le rang est maintenant **${statusLabel}**.`,
     configTrainingForumSubcommandDescription:
       "Definit le forum utilise pour les guides de formation.",
     configTrainingForumOptionDescription: "Forum utilise pour les guides de formation",
@@ -196,18 +205,22 @@ const translations = {
     forumNoCompletedSessions: "- Aucune session terminee pour le moment.",
     commandGuideTitle: "Commandes de service",
     commandGuideDescription:
-      "Utilisez les commandes ci-dessous dans ce salon pour gerer votre prise de service.",
+      "Utilisez les boutons ci-dessous dans ce salon pour gerer votre prise de service.",
     commandGuideJobField: "Metier",
     commandGuideStartField: "/service start",
     commandGuideStartValue: "Prendre son service",
+    commandGuideStartButton: "Prise de service",
     commandGuideStopField: "/service stop",
     commandGuideStopValue: "Terminer son service",
+    commandGuideStopButton: "Fin de service",
     commandGuideStatusField: "/service status",
     commandGuideStatusValue: "Voir les agents actuellement en service",
+    commandGuideStatusButton: "Voir le status",
     commandGuideLeaderboardField: "/leaderboard",
     commandGuideLeaderboardValue: "Voir le classement des temps de service",
+    commandGuideLeaderboardButton: "Leaderboard",
     commandGuideFooter:
-      "Utilisez ces commandes dans ce salon pour votre service RP.",
+      "Utilisez les boutons de ce panneau pour votre service RP.",
     helpTitle: "Aide du bot",
     helpUserCommandsTitle: "Commandes joueurs",
     helpAdminCommandsTitle: "Commandes administrateur",
@@ -226,6 +239,8 @@ const translations = {
     helpConfigLanguage: "Changer la langue du bot pour ce serveur",
     helpConfigShow: "Afficher la configuration actuelle",
     helpConfigRankRoles: "Definir quels roles comptent pour le rang affiche",
+    helpConfigRankNicknameSync:
+      "Activer ou desactiver le pseudo automatique avec le rang du job",
     helpConfigTrainingForum: "Definir le forum des guides de formation",
     helpConfigTrainingRoles: "Autoriser des roles comme Formateur ou Staff a publier des guides",
     helpGuidePost: "Publier un guide pret a l'emploi dans un salon",
@@ -247,6 +262,8 @@ const translations = {
     beginStepJobName: "Definir le nom du metier RP affiche dans les fiches",
     beginStepLanguage: "Choisir la langue du bot pour ce serveur",
     beginStepRankRoles: "Ajouter les roles qui doivent compter pour afficher le rang",
+    beginStepRankNicknameSync:
+      "Activer la sync automatique du pseudo si vous voulez prefixer le nom avec le rang",
     beginStepTrainingForum: "Choisir le forum dedie aux guides de formation",
     beginStepTrainingRoles:
       "Ajouter les roles autorises a publier des guides, par exemple Formateur et Staff",
@@ -261,6 +278,7 @@ const translations = {
     guideTypeAdmin: "admin",
     guideTypeTraining: "formation",
     guideTypeReport: "rapport",
+    guideTypeRoleRequest: "demande de role",
     guideNotConfigured: "non configure",
     guidePostSuccess: ({ type, channel }) =>
       `Le guide ${type} a ete publie dans ${channel} et epingle si possible.`,
@@ -268,7 +286,7 @@ const translations = {
       `Impossible de publier un guide dans ${channel}. Verifiez les permissions du bot sur ce salon.`,
     guideServiceTitle: "Guide de service",
     guideServiceDescription: ({ channel }) =>
-      `Les commandes de service doivent etre utilisees dans ${channel}.`,
+      `La prise de service doit etre geree dans ${channel}.`,
     guideServiceStartValue:
       "Demarre votre prise de service et met a jour votre fiche de presence.",
     guideServiceStopValue:
@@ -279,7 +297,7 @@ const translations = {
       "Affiche le classement des temps de service du serveur.",
     guideServiceNotesField: "A retenir",
     guideServiceNotesValue:
-      "- utilisez toujours `/service stop` en fin de service\n- les messages publics du bot se suppriment automatiquement apres 1 minute",
+      "- utilisez le panneau de service et ses boutons dans le salon dedie\n- terminez toujours votre service a la fin de votre session\n- les messages publics du bot se suppriment automatiquement apres 1 minute",
     guideServiceFooter:
       "Republiez ce guide avec /guide post si vous avez besoin d'une nouvelle copie.",
     guideAdminTitle: "Guide administrateur",
@@ -333,7 +351,7 @@ const translations = {
       "Utilisez des noms de guide clairs pour eviter les doublons inutiles.",
     guideReportTitle: "Guide des rapports",
     guideReportDescription:
-      "Utilisez les mini rapports RP pour garder une trace simple et rapide d'un evenement important.",
+      "Utilisez les mini rapports RP pour garder une trace simple et rapide d'un evenement important dans le salon dedie.",
     guideReportCreateValue:
       "Cree un rapport avec un titre, un resume, et si besoin une personne ou un sujet concerne, puis ouvre un suivi dans le forum des rapports.",
     guideReportListValue:
@@ -342,9 +360,17 @@ const translations = {
       "Ferme un rapport existant via son identifiant et marque son suivi comme cloture.",
     guideReportNotesField: "A retenir",
     guideReportNotesValue:
-      "- gardez les resumes courts et utiles\n- l'auteur du rapport ou un administrateur peut fermer un rapport",
+      "- gardez les resumes courts et utiles\n- un rapport sert a tracer un evenement important sans alourdir le RP\n- l'auteur du rapport ou un administrateur peut fermer un rapport",
     guideReportFooter:
       "Utilisez un rapport par evenement important pour garder un suivi simple.",
+    guideRoleRequestTitle: "Demande de role",
+    guideRoleRequestDescription: ({ role }) =>
+      `Utilisez le modele ci-dessous pour faire une demande de role aupres de ${role}.`,
+    guideRoleRequestFieldTitle: "Modele pour votre demande de role",
+    guideRoleRequestFieldValue: ({ role }) =>
+      `**${role}**\n\nNom :\nPrenom :\nGrade/rôle :\nPreuve validee par le recruteur/formateur :`,
+    guideRoleRequestFooter:
+      "Remplissez ce modele clairement pour accelerer le traitement de votre demande.",
     guidePostLog: ({ author, type, channel }) =>
       `${author} a publie le guide ${type} dans ${channel}.`,
     staffLogDefaultTitle: "Log staff",
@@ -375,6 +401,17 @@ const translations = {
       "Impossible de lire le fichier fourni depuis Discord.",
     reportListTitle: "Rapports RP",
     reportListEmpty: "Aucun rapport ne correspond a ce filtre pour le moment.",
+    reportCreateButton: "Creer un rapport",
+    reportListButton: "Voir les rapports",
+    reportCloseButton: "Cloturer un rapport",
+    reportCreateModalTitle: "Creation de rapport",
+    reportCreateTitleField: "Titre",
+    reportCreateSubjectField: "Sujet ou personne concernee",
+    reportCreateSummaryField: "Resume",
+    reportCloseModalTitle: "Cloture de rapport",
+    reportCloseIdField: "Identifiant du rapport",
+    reportCloseInvalidId:
+      "L'identifiant du rapport doit etre un nombre valide superieur a 0.",
     reportCreateSuccess: ({ id, thread }) =>
       `Rapport cree avec succes sous l'identifiant #${id}. Suivi cree dans ${thread}.`,
     reportCreateLog: ({ author, id, title, subject, thread }) =>
@@ -434,9 +471,12 @@ const translations = {
     configLabelJobName: "Job name",
     configLabelLanguage: "Language",
     configLabelRankRoles: "Rank roles",
+    configLabelRankNicknameSync: "Rank nickname sync",
     configLabelTrainingRoles: "Training roles",
     configNotSet: "Not set",
     configAllRolesAllowed: "All server roles",
+    configToggleEnabled: "Enabled",
+    configToggleDisabled: "Disabled",
     configTrainingRolesDefault: "No roles configured",
     configCommandChannelSaved: ({ channel }) =>
       `Command channel set to ${channel}.`,
@@ -474,6 +514,12 @@ const translations = {
     configRankRoleClearDescription:
       "Clear the configured rank-role list.",
     configRankRoleOptionDescription: "Role used for ranks",
+    configRankNicknameSyncDescription:
+      "Enable or disable automatic rank nickname synchronization.",
+    configRankNicknameSyncOptionDescription:
+      "Choose whether server nicknames should automatically include the rank",
+    configRankNicknameSyncSaved: ({ statusLabel }) =>
+      `Automatic rank nickname sync is now **${statusLabel}**.`,
     configTrainingForumSubcommandDescription:
       "Set the forum used for training guides.",
     configTrainingForumOptionDescription: "Forum used for training guides",
@@ -598,18 +644,22 @@ const translations = {
     forumNoCompletedSessions: "- No completed sessions yet.",
     commandGuideTitle: "Service commands",
     commandGuideDescription:
-      "Use the commands below in this channel to manage your service sessions.",
+      "Use the buttons below in this channel to manage your service sessions.",
     commandGuideJobField: "Job",
     commandGuideStartField: "/service start",
     commandGuideStartValue: "Start your service session",
+    commandGuideStartButton: "Start service",
     commandGuideStopField: "/service stop",
     commandGuideStopValue: "End your service session",
+    commandGuideStopButton: "Stop service",
     commandGuideStatusField: "/service status",
     commandGuideStatusValue: "View the agents currently on duty",
+    commandGuideStatusButton: "View status",
     commandGuideLeaderboardField: "/leaderboard",
     commandGuideLeaderboardValue: "View the service time leaderboard",
+    commandGuideLeaderboardButton: "Leaderboard",
     commandGuideFooter:
-      "Use these commands in this channel for your RP service flow.",
+      "Use the panel buttons in this channel for your RP service flow.",
     helpTitle: "Bot help",
     helpUserCommandsTitle: "Player commands",
     helpAdminCommandsTitle: "Administrator commands",
@@ -628,6 +678,8 @@ const translations = {
     helpConfigLanguage: "Change the bot language for this server",
     helpConfigShow: "Display the current configuration",
     helpConfigRankRoles: "Define which roles are used for displayed ranks",
+    helpConfigRankNicknameSync:
+      "Enable or disable automatic job-rank nicknames",
     helpConfigTrainingForum: "Set the forum used for training guides",
     helpConfigTrainingRoles: "Allow roles such as Trainer or Staff to publish guides",
     helpGuidePost: "Post a built-in guide in a channel",
@@ -649,6 +701,8 @@ const translations = {
     beginStepJobName: "Set the RP job name displayed in profiles",
     beginStepLanguage: "Choose the bot language for this server",
     beginStepRankRoles: "Add the roles that should count for the displayed rank",
+    beginStepRankNicknameSync:
+      "Enable automatic nickname sync if you want rank prefixes in server names",
     beginStepTrainingForum: "Choose the forum dedicated to training guides",
     beginStepTrainingRoles:
       "Add the roles allowed to publish guides, for example Trainer and Staff",
@@ -663,6 +717,7 @@ const translations = {
     guideTypeAdmin: "admin",
     guideTypeTraining: "training",
     guideTypeReport: "report",
+    guideTypeRoleRequest: "role request",
     guideNotConfigured: "not configured",
     guidePostSuccess: ({ type, channel }) =>
       `The ${type} guide was posted in ${channel} and pinned when possible.`,
@@ -670,7 +725,7 @@ const translations = {
       `Unable to post a guide in ${channel}. Check the bot permissions for that channel.`,
     guideServiceTitle: "Service guide",
     guideServiceDescription: ({ channel }) =>
-      `Service commands should be used in ${channel}.`,
+      `Service duty should be managed in ${channel}.`,
     guideServiceStartValue:
       "Starts your duty session and updates your service profile.",
     guideServiceStopValue:
@@ -681,7 +736,7 @@ const translations = {
       "Shows the server leaderboard for service time.",
     guideServiceNotesField: "Remember",
     guideServiceNotesValue:
-      "- always use `/service stop` at the end of your shift\n- public bot messages are deleted automatically after 1 minute",
+      "- use the service panel and its buttons in the dedicated channel\n- always end your service at the end of your shift\n- public bot messages are deleted automatically after 1 minute",
     guideServiceFooter:
       "Repost this guide with /guide post whenever you need a fresh copy.",
     guideAdminTitle: "Administrator guide",
@@ -735,7 +790,7 @@ const translations = {
       "Use clear guide names to avoid unnecessary duplicates.",
     guideReportTitle: "Report guide",
     guideReportDescription:
-      "Use lightweight RP reports to keep a simple and fast record of an important event.",
+      "Use lightweight RP reports to keep a simple and fast record of an important event in the dedicated channel.",
     guideReportCreateValue:
       "Create a report with a title, a summary, and optionally a person or subject involved, then open a tracked forum post.",
     guideReportListValue:
@@ -744,9 +799,17 @@ const translations = {
       "Close an existing report by its ID and mark its tracking post as closed.",
     guideReportNotesField: "Remember",
     guideReportNotesValue:
-      "- keep summaries short and useful\n- the report author or a server administrator can close a report",
+      "- keep summaries short and useful\n- a report should track one important event without slowing down RP\n- the report author or a server administrator can close a report",
     guideReportFooter:
       "Use one report per important event to keep tracking simple.",
+    guideRoleRequestTitle: "Role request",
+    guideRoleRequestDescription: ({ role }) =>
+      `Use the template below to request a role from ${role}.`,
+    guideRoleRequestFieldTitle: "Role request template",
+    guideRoleRequestFieldValue: ({ role }) =>
+      `**${role}**\n\nName:\nFirst name:\nGrade/role:\nProof validated by the recruiter/trainer:`,
+    guideRoleRequestFooter:
+      "Fill in this template clearly to speed up the review of your request.",
     guidePostLog: ({ author, type, channel }) =>
       `${author} posted the ${type} guide in ${channel}.`,
     staffLogDefaultTitle: "Staff log",
@@ -777,6 +840,17 @@ const translations = {
       "Unable to read the provided file from Discord.",
     reportListTitle: "RP reports",
     reportListEmpty: "No report matches this filter right now.",
+    reportCreateButton: "Create report",
+    reportListButton: "View reports",
+    reportCloseButton: "Close report",
+    reportCreateModalTitle: "Create report",
+    reportCreateTitleField: "Title",
+    reportCreateSubjectField: "Subject or person involved",
+    reportCreateSummaryField: "Summary",
+    reportCloseModalTitle: "Close report",
+    reportCloseIdField: "Report ID",
+    reportCloseInvalidId:
+      "The report ID must be a valid number greater than 0.",
     reportCreateSuccess: ({ id, thread }) =>
       `Report created successfully as #${id}. Tracking thread created in ${thread}.`,
     reportCreateLog: ({ author, id, title, subject, thread }) =>

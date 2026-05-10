@@ -29,6 +29,7 @@ French version: [README.fr.md](README.fr.md)
 - `/config rank-role-remove`
 - `/config rank-role-list`
 - `/config rank-role-clear`
+- `/config rank-nickname-sync`
 - `/config training-role-add`
 - `/config training-role-remove`
 - `/config training-role-list`
@@ -59,6 +60,9 @@ Important:
 - `TEST_GUILD_IDS` is optional
 - you only need it if you want fast command updates on one or more test servers
 - if you leave it empty, the bot can still work on every server where it is invited
+- enable the `Server Members Intent` in the Discord Developer Portal if you want automatic rank nicknames
+- give the bot the `Manage Nicknames` permission
+- place the bot role above the members it must rename
 
 ## `.env` configuration
 
@@ -249,9 +253,12 @@ Example:
 `/guide post type:service channel:#service-help`
 
 Use:
-- posts a ready-to-use guide for `service`, `admin`, `training`, or `report`
+- posts a ready-to-use guide for `service`, `admin`, `training`, `report`, or `role-request`
 - automatically pins the message when the bot can pin messages
 - helps staff avoid re-explaining the same commands repeatedly
+
+Example for a role request template:
+`/guide post type:role-request channel:#role-request role:@ASPD`
 
 ### `/config command-channel`
 
@@ -259,6 +266,10 @@ Sets the text channel allowed for service commands.
 
 Example:
 `/config command-channel channel:#service`
+
+Notes:
+- updates the pinned service panel in that channel
+- the panel includes buttons for `Start`, `Stop`, `Status`, and `Leaderboard`
 
 ### `/config forum-channel`
 
@@ -356,6 +367,23 @@ Clears the configured rank-role list.
 
 Example:
 `/config rank-role-clear`
+
+Notes:
+- use this if only specific job ranks should count for the displayed rank
+- do not add staff or moderation roles here
+- if you want automatic rank prefixes in nicknames, configure these roles first and then enable `/config rank-nickname-sync`
+
+### `/config rank-nickname-sync`
+
+Enables or disables automatic nickname sync with the configured job rank.
+
+Example:
+`/config rank-nickname-sync value:enabled`
+
+Notes:
+- the bot uses only the roles added through `/config rank-role-add`
+- when enabled, the bot prefixes the member server nickname with the highest configured rank
+- when disabled, the bot removes the known rank prefixes it previously added
 
 ### `/config training-role-add`
 

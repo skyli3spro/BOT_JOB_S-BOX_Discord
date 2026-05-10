@@ -26,6 +26,7 @@ function initDatabase(databasePath) {
       job_name TEXT,
       language TEXT DEFAULT 'en',
       rank_role_ids TEXT DEFAULT '[]',
+      auto_rank_nickname_enabled INTEGER DEFAULT 0,
       training_role_ids TEXT DEFAULT '[]'
     );
 
@@ -80,6 +81,12 @@ function initDatabase(databasePath) {
 
   if (!guildConfigColumns.includes("rank_role_ids")) {
     db.exec("ALTER TABLE guild_config ADD COLUMN rank_role_ids TEXT DEFAULT '[]';");
+  }
+
+  if (!guildConfigColumns.includes("auto_rank_nickname_enabled")) {
+    db.exec(
+      "ALTER TABLE guild_config ADD COLUMN auto_rank_nickname_enabled INTEGER DEFAULT 0;"
+    );
   }
 
   if (!guildConfigColumns.includes("training_forum_channel_id")) {
